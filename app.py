@@ -1,6 +1,39 @@
-from flask import Flask, render_template, jsonify
+import os
 import datetime
+from pathlib import Path
+from flask import Flask, render_template, jsonify, request
 from db import get_db, init_db
+
+
+# ---- TTS setup ----
+TTS_ENABLED = os.getenv("TTS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+TTS_VOICE = os.getenv("TTS_VOICE", "male").lower()
+
+tts_engine = None
+try:
+    import pyttsx3  # type: ignore
+
+    tts_engine = pyttsx3.init()
+    if TTS_VOICE == "male":
+        # Try to pick a male-ish voice; fallback to default.
+        for voice in tts_engine.getProperty("voices"):
+            if "male" in voice.name.lower() or "en" in voice.name.lower():
+                tts_engine.setProperty("voice", voice.id)
+                break
+except Exception:
+    tts_engine = None  # Degrade gracefully if TTS is unavailable.
+
+
+def announce(text):
+    """Speak text if TTS is enabled and engine is available."""
+    if not TTS_ENABLED or not tts_engine or not text:
+        return
+    try:
+        tts_engine.say(text)
+        tts_engine.runAndWait()
+    except Exception:
+        # Silence any runtime TTS failures to avoid breaking the app path.
+        pass
 
 
 def build_suggestion(bd_entry, wx_entry, space_entry):
@@ -57,7 +90,9 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    today = datetime.date.today().isoformat()
+    # Allow optional ?date=YYYY-MM-DD override for testing/future previews.
+    override_date = request.args.get("date")
+    today = override_date or datetime.date.today().isoformat()
     conn = get_db()
     bd_row = conn.execute("SELECT * FROM bd_calendar WHERE date=?", (today,)).fetchone()
     wx_row = conn.execute("SELECT * FROM weather_daily WHERE date=?", (today,)).fetchone()
@@ -91,6 +126,29 @@ def index():
 
     today_suggestion = build_suggestion(bd, wx, space)
     alerts = collect_alerts(bd, wx, space)
+
+    # Gather soundtrack files (static/music/*)
+    music_dir = Path("static/music")
+    soundtrack = []
+    if music_dir.exists():
+        for p in sorted(music_dir.iterdir()):
+            if p.suffix.lower() in {".mp3", ".wav", ".ogg", ".m4a"}:
+                soundtrack.append(p.name)
+
+    # Trigger a concise TTS announcement when enabled.
+    summary_parts = []
+    if bd:
+        summary_parts.append(f"Biodynamic {bd.get('type', '')} day, phase {bd.get('phase', '')}.")
+    if wx:
+        pop_pct = int(((wx.get("pop") or 0) * 100))
+        summary_parts.append(
+            f"Weather: {wx.get('description', 'n/a')}, high {wx.get('temp_max', 'n/a')} C, rain chance {pop_pct} percent."
+        )
+    if space and space.get("kp_now") is not None:
+        summary_parts.append(f"Space weather Kp {space['kp_now']}.")
+    if today_suggestion:
+        summary_parts.append(today_suggestion)
+    announce(" ".join(summary_parts))
     conn.close()
     return render_template(
         "index.html",
@@ -100,6 +158,8 @@ def index():
         forecast=enriched_forecast,
         today_suggestion=today_suggestion,
         alerts=alerts,
+        soundtrack=soundtrack,
+        current_date=today,
     )
 
 @app.route("/api/status")

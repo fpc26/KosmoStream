@@ -7,7 +7,10 @@
 </head>
 <body class="bg-dark text-light">
 <div class="container py-4">
-  <h1 class="mb-4">KosmoStream</h1>
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <h1 class="mb-0">KosmoStream</h1>
+    <span class="badge bg-secondary">{{ current_date }}</span>
+  </div>
 
   {% if alerts and alerts|length > 0 %}
     <div class="mb-3">
@@ -76,6 +79,28 @@
       {% endfor %}
     </div>
   </div>
+
+  {% if soundtrack and soundtrack|length > 0 %}
+  <div class="mt-4">
+    <h5>Soundtrack</h5>
+    <div class="card text-dark">
+      <div class="card-body">
+        <p class="mb-2">Your local AI-generated tracks (static/music)</p>
+        <audio id="ks-audio" controls loop class="w-100 mb-3">
+          <source src="{{ url_for('static', filename='music/' + soundtrack[0]) }}">
+          Your browser does not support the audio element.
+        </audio>
+        <ul class="list-unstyled small mb-0" id="ks-playlist">
+          {% for track in soundtrack %}
+          <li class="mb-1">
+            <a href="{{ url_for('static', filename='music/' + track) }}" class="text-decoration-none">{{ track }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 </body>
 </html>
