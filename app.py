@@ -1,12 +1,12 @@
 import os
 import datetime
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, make_response
 from db import get_db, init_db
 
 
 # ---- TTS setup ----
-TTS_ENABLED = os.getenv("TTS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+TTS_ENABLED_DEFAULT = os.getenv("TTS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 TTS_VOICE = os.getenv("TTS_VOICE", "male").lower()
 
 tts_engine = None
@@ -26,7 +26,7 @@ except Exception:
 
 def announce(text):
     """Speak text if TTS is enabled and engine is available."""
-    if not TTS_ENABLED or not tts_engine or not text:
+    if not tts_engine or not text:
         return
     try:
         tts_engine.say(text)
@@ -86,6 +86,36 @@ def collect_alerts(bd_entry, wx_entry, space_entry):
 
     return alerts
 
+
+def _clean_note(value):
+    """Normalize BD notes: treat lone '-' or empty as None."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "-" or text == "":
+        return None
+    return text
+
+
+def day_label(date_str, today_str):
+    """Return human-friendly labels like Today (Month 18th), Tomorrow, or Weekday with suffix."""
+    today = datetime.datetime.fromisoformat(today_str).date()
+    target = datetime.datetime.fromisoformat(date_str).date()
+    delta = (target - today).days
+
+    def suffix(n):
+        if 10 <= n % 100 <= 20:
+            return "th"
+        return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+    pretty_date = target.strftime(f"%B {target.day}{suffix(target.day)}")
+    if delta == 0:
+        return f"Today ({pretty_date})"
+    if delta == 1:
+        return f"Tomorrow ({pretty_date})"
+    weekday = target.strftime("%A")
+    return f"{weekday} {target.day}{suffix(target.day)}" if target.month == today.month else f"{weekday}, {pretty_date}"
+
 app = Flask(__name__)
 
 @app.route("/")
@@ -93,6 +123,15 @@ def index():
     # Allow optional ?date=YYYY-MM-DD override for testing/future previews.
     override_date = request.args.get("date")
     today = override_date or datetime.date.today().isoformat()
+    # TTS preference can be overridden via cookie or query param (?tts=on/off)
+    tts_param = request.args.get("tts")
+    cookie_tts = request.cookies.get("ks_tts")
+    if tts_param in {"on", "off"}:
+        tts_enabled = tts_param == "on"
+    elif cookie_tts in {"on", "off"}:
+        tts_enabled = cookie_tts == "on"
+    else:
+        tts_enabled = TTS_ENABLED_DEFAULT
     conn = get_db()
     bd_row = conn.execute("SELECT * FROM bd_calendar WHERE date=?", (today,)).fetchone()
     wx_row = conn.execute("SELECT * FROM weather_daily WHERE date=?", (today,)).fetchone()
@@ -121,8 +160,14 @@ def index():
     for row in forecast_rows:
         wx_entry = dict(row)
         bd_entry = bd_map.get(row["date"])
+        if bd_entry:
+            bd_entry["notes"] = _clean_note(bd_entry.get("notes"))
         suggestion = build_suggestion(bd_entry, wx_entry, space)
-        enriched_forecast.append({"wx": wx_entry, "bd": bd_entry, "suggestion": suggestion})
+        display_label = day_label(wx_entry["date"], today)
+        enriched_forecast.append({"wx": wx_entry, "bd": bd_entry, "suggestion": suggestion, "display_label": display_label})
+
+    if bd:
+        bd["notes"] = _clean_note(bd.get("notes"))
 
     today_suggestion = build_suggestion(bd, wx, space)
     alerts = collect_alerts(bd, wx, space)
@@ -148,9 +193,10 @@ def index():
         summary_parts.append(f"Space weather Kp {space['kp_now']}.")
     if today_suggestion:
         summary_parts.append(today_suggestion)
-    announce(" ".join(summary_parts))
+    if tts_enabled:
+        announce(" ".join(summary_parts))
     conn.close()
-    return render_template(
+    resp = make_response(render_template(
         "index.html",
         bd=bd,
         wx=wx,
@@ -160,7 +206,12 @@ def index():
         alerts=alerts,
         soundtrack=soundtrack,
         current_date=today,
-    )
+        tts_enabled=tts_enabled,
+        day_label=day_label,
+    ))
+    if tts_param in {"on", "off"}:
+        resp.set_cookie("ks_tts", tts_param, max_age=30*24*3600)
+    return resp
 
 @app.route("/api/status")
 def status():
@@ -174,6 +225,9 @@ def status():
     bd = dict(bd_row) if bd_row else None
     wx = dict(wx_row) if wx_row else None
     space = dict(space_row) if space_row else None
+    if bd:
+        bd["notes"] = _clean_note(bd.get("notes"))
+
     today_suggestion = build_suggestion(bd, wx, space)
     alerts = collect_alerts(bd, wx, space)
     conn.close()

@@ -9,45 +9,51 @@
       background: radial-gradient(circle at 20% 20%, #16213e 0%, #0a0f1f 35%, #050910 100%);
       color: #e9edf5;
       min-height: 100vh;
-      overflow-x: hidden;
+      overflow: hidden;
     }
-    .glass {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-      backdrop-filter: blur(6px);
-      border-radius: 18px;
-    }
+    .glass { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.35); backdrop-filter: blur(6px); border-radius: 18px; }
     .hero-title { letter-spacing: 0.04em; }
-    .ticker {
-      background: linear-gradient(90deg, #d7263d, #f19a3e);
-      color: #fff;
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-weight: 600;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.35);
-    }
+    .ticker { background: linear-gradient(90deg, #d7263d, #f19a3e); color: #fff; border-radius: 12px; padding: 10px 14px; font-weight: 600; box-shadow: 0 6px 16px rgba(0,0,0,0.35); }
     .metric-label { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: #9fb3c8; }
     .metric-value { font-size: 2rem; font-weight: 700; }
     .badge-soft { background: rgba(255,255,255,0.12); color: #c7d3e3; border-radius: 10px; padding: 4px 8px; font-size: 0.8rem; }
-    .forecast-strip { overflow-x: auto; white-space: nowrap; }
-    .forecast-card { display: inline-block; width: 200px; margin-right: 12px; vertical-align: top; }
     .card-dark { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); color: #e9edf5; }
+      .kp-bar { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; margin-top: 6px; }
+      .kp-cell { height: 10px; border-radius: 4px; background: rgba(255,255,255,0.1); }
+      .kp-cell.on-1 { background:#2ecc71; }
+      .kp-cell.on-2 { background:#2ecc71; }
+      .kp-cell.on-3 { background:#27ae60; }
+      .kp-cell.on-4 { background:#f1c40f; }
+      .kp-cell.on-5 { background:#f39c12; }
+      .kp-cell.on-6 { background:#e67e22; }
+      .kp-cell.on-7 { background:#e74c3c; }
+      .kp-cell.on-8 { background:#c0392b; }
+      .kp-cell.on-9 { background:#8e0e00; }
     .muted { color: #a8b6c8; }
-    .pulse { animation: pulse 2.5s ease-in-out infinite; }
-    @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
-    .slide { display: none; }
-    .slide.active { display: block; }
+    .view-slide { min-height: 80vh; padding: 1rem; display: none; }
+    .view-slide.active { display: block; }
+    .bd-icon { width: 28px; height: 28px; display: inline-block; vertical-align: middle; margin-right: 8px; }
+    .moon-icon { width: 24px; height: 24px; margin-right: 6px; }
+    #settingsPanel { max-width: 420px; }
+    .pill-btn { border-radius: 999px; }
+    .section-title { letter-spacing: 0.05em; text-transform: uppercase; font-size: 0.9rem; color: #9fb3c8; margin-bottom: .4rem; }
+    .modal-content { background: rgba(10, 14, 25, 0.92); color: #e9edf5; border: 1px solid rgba(255,255,255,0.08); }
+    .modal-header, .modal-footer { border-color: rgba(255,255,255,0.08); }
+    .form-control, .form-select { background-color: #0f1625; color: #e9edf5; border: 1px solid rgba(255,255,255,0.15); }
+    .form-control:focus, .form-select:focus { background-color: #0f1625; color: #e9edf5; box-shadow: 0 0 0 0.15rem rgba(255,255,255,0.15); }
   </style>
 </head>
 <body>
-<div class="container-fluid py-4">
+<div class="container-fluid py-3">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
       <h1 class="hero-title fw-bold mb-0">KosmoStream</h1>
       <div class="small text-secondary">Cosmic-aligned planting stream</div>
     </div>
-    <span class="badge-soft">{{ current_date }}</span>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="badge-soft">{{ current_date }}</span>
+      <button class="btn btn-sm btn-outline-light pill-btn" data-bs-toggle="modal" data-bs-target="#settingsModal">Settings</button>
+    </div>
   </div>
 
   {% if alerts and alerts|length > 0 %}
@@ -56,131 +62,401 @@
     <div class="ticker mb-3" id="ks-ticker">{{ today_suggestion }}</div>
   {% endif %}
 
-  <div class="row g-3">
-    <div class="col-lg-8">
-      <div class="glass p-4 h-100">
-        <div class="d-flex justify-content-between align-items-start mb-3">
-          <div>
-            <div class="metric-label">Today</div>
-            <div class="metric-value" id="bd-type">{{ bd['type'] if bd else 'No BD data' }}</div>
-            <div class="text-secondary">{{ bd['phase'] if bd else '' }}</div>
-          </div>
-          <div class="text-end">
-            <div class="metric-label">Suggestion</div>
-            <div class="fw-semibold" id="today-suggestion">{{ today_suggestion }}</div>
-          </div>
-        </div>
-        <div class="row g-3">
-          <div class="col-md-4">
-            <div class="card-dark p-3 h-100">
-              <div class="metric-label">Weather</div>
-              {% if wx %}
-                <div class="metric-value" id="temp-range">{{ wx['temp_min']|round }}–{{ wx['temp_max']|round }}°C</div>
-                <div class="muted" id="wx-desc">{{ wx['description'] }}</div>
-                <div class="badge-soft mt-2" id="wx-pop">POP {{ (wx['pop'] or 0)*100|round }}%</div>
-              {% else %}
-                <div class="muted">No weather data yet.</div>
-              {% endif %}
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card-dark p-3 h-100">
-              <div class="metric-label">Space Weather</div>
-              {% if space %}
-                <div class="metric-value" id="kp-now">Kp {{ space['kp_now'] or 'n/a' }}</div>
-                <div class="muted" id="space-summary">{{ space['summary'] }}</div>
-              {% else %}
-                <div class="muted">No space data yet.</div>
-              {% endif %}
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card-dark p-3 h-100">
-              <div class="metric-label">BD Notes</div>
-              {% if bd %}
-                <div class="fw-semibold" id="bd-activities">{{ bd['activities'] }}</div>
-                <div class="muted" id="bd-notes">{{ bd['notes'] }}</div>
-              {% else %}
-                <div class="muted">No BD data yet.</div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-lg-4">
-      <div class="glass p-4 h-100">
-        <div class="metric-label">Aurora / Alerts</div>
-        <div class="fw-bold fs-4 mb-2">Live Signals</div>
-        <ul class="list-unstyled mb-3" id="alert-list">
-          {% if alerts and alerts|length > 0 %}
-            {% for alert in alerts %}
-              <li class="mb-2">• {{ alert.text }}</li>
-            {% endfor %}
-          {% else %}
-              <li class="text-secondary">No active alerts</li>
-          {% endif %}
-        </ul>
-        {% if soundtrack and soundtrack|length > 0 %}
-          <div class="metric-label">Soundtrack</div>
-          <audio id="ks-audio" controls loop class="w-100 mb-2">
-            <source src="{{ url_for('static', filename='music/' + soundtrack[0]) }}">
-            Your browser does not support the audio element.
-          </audio>
-          <div class="small text-secondary">Playlist</div>
-          <ul class="list-unstyled small mb-0" id="ks-playlist">
-            {% for track in soundtrack %}
-            <li class="mb-1">
-              <a href="{{ url_for('static', filename='music/' + track) }}" class="text-decoration-none">{{ track }}</a>
-            </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <div class="muted">Add tracks to static/music to enable soundtrack.</div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+  <div id="slides-wrapper">
 
-  <div class="glass p-3 mt-4">
-    <div class="d-flex align-items-center mb-2">
-      <h5 class="mb-0">7-Day Strip</h5>
-      <span class="badge-soft ms-2">Auto rotates</span>
-    </div>
-    <div class="forecast-strip" id="forecast-strip">
-      {% for item in forecast %}
-      {% set d = item.wx %}
-      <div class="forecast-card card-dark p-3 slide {% if loop.index == 1 %}active{% endif %}">
-        <div class="fw-bold">{{ d['date'] }}</div>
-        <div class="muted small">{{ item.bd['phase'] if item.bd else '' }}</div>
-        <div class="fs-5 fw-semibold">{{ d['temp_min']|round }}–{{ d['temp_max']|round }}°C</div>
-        <div class="badge-soft mb-2">POP {{ (d['pop'] or 0)*100|round }}%</div>
-        <div class="muted small">{{ d['description'] }}</div>
-        {% if item.bd %}
-          <div class="small mt-2">BD: {{ item.bd['type'] }} | {{ item.bd['phase'] }}</div>
-        {% endif %}
-        <div class="small text-secondary mt-1">{{ item.suggestion }}</div>
+  <!-- Current Conditions View -->
+  <section class="view-slide active" id="slide-current">
+    <div class="section-title">Current Conditions</div>
+    <div class="glass p-4">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          <div class="metric-label">Today</div>
+          <div class="metric-value" id="bd-type">{{ bd['type'] if bd else 'No BD data' }}</div>
+          <div class="text-secondary d-flex align-items-center">{% if bd %}{% include 'partials/bd_icon.html' with context %}{% set phase_text = bd['phase'] %}{% include 'partials/moon_icon.html' with context %}{{ bd['phase'] }}{% endif %}</div>
+        </div>
+        <div class="text-end">
+          <div class="metric-label">Suggestion</div>
+          <div class="fw-semibold" id="today-suggestion">{{ today_suggestion }}</div>
+        </div>
       </div>
-      {% endfor %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="card-dark p-3 h-100">
+            <div class="metric-label">Weather</div>
+            {% if wx %}
+              <div class="metric-value" id="temp-range" data-raw-min="{{ wx['temp_min'] }}" data-raw-max="{{ wx['temp_max'] }}">{{ wx['temp_min']|round }}–{{ wx['temp_max']|round }}°{{ 'C' }}</div>
+              <div class="muted" id="wx-desc">{{ wx['description'] }}</div>
+              <div class="badge-soft mt-2" id="wx-pop">POP {{ (wx['pop'] or 0)*100|round }}%</div>
+            {% else %}
+              <div class="muted">No weather data yet.</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card-dark p-3 h-100">
+            <div class="metric-label">Space Weather</div>
+            {% if space %}
+              <div class="metric-value" id="kp-now">Kp {{ space['kp_now'] or 'n/a' }}</div>
+              <div class="muted" id="space-summary">{{ space['summary'] }}</div>
+              {% if space['kp_now'] is not none %}
+              <div class="kp-bar mt-2" id="kp-bar">
+                {% for i in range(1,10) %}
+                  {% set active_class = 'on-' ~ i if i <= space['kp_now']|round(0, 'floor') else '' %}
+                  <div class="kp-cell {{ active_class }}"></div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            {% else %}
+              <div class="muted">No space data yet.</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card-dark p-3 h-100">
+            <div class="metric-label">BD Notes</div>
+            {% if bd %}
+              <div class="fw-semibold" id="bd-activities">{{ bd['activities'] }}</div>
+              <div class="muted" id="bd-notes">{{ bd['notes'] or '' }}</div>
+            {% else %}
+              <div class="muted">No BD data yet.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Planting Outlook 3d -->
+  <section class="view-slide" id="slide-outlook-3">
+    <div class="section-title">Planting Outlook (3 days)</div>
+    <div class="glass p-3">
+      <div class="row g-3">
+        {% for item in forecast[:3] %}
+        {% set d = item.wx %}
+        <div class="col-md-4">
+          <div class="card-dark p-3 h-100">
+            <div class="fw-bold">{{ item.display_label }}</div>
+            <div class="muted small d-flex align-items-center">{% if item.bd %}{% set phase_text = item.bd['phase'] %}{% include 'partials/moon_icon.html' with context %}{% endif %}<span>{{ item.bd['phase'] if item.bd else '' }}</span></div>
+            <div class="d-flex align-items-center mt-1">
+              {% if item.bd %}{% set bd_for_icon = item.bd %}{% include 'partials/bd_icon.html' with context %}{% endif %}
+              <span class="fs-5 fw-semibold" data-tmin="{{ d['temp_min'] }}" data-tmax="{{ d['temp_max'] }}">{{ d['temp_min']|round }}–{{ d['temp_max']|round }}°{{ 'C' }}</span>
+            </div>
+            <div class="badge-soft mt-1">POP {{ (d['pop'] or 0)*100|round }}%</div>
+            <div class="muted small">{{ d['description'] }}</div>
+            <div class="small text-secondary mt-1">{{ item.suggestion }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- Extended Outlook 7d -->
+  <section class="view-slide" id="slide-outlook-7">
+    <div class="section-title">Extended Planting Outlook (7 days)</div>
+    <div class="glass p-3">
+      <div class="row g-3">
+        {% for item in forecast[1:7] %}
+        {% set d = item.wx %}
+        <div class="col-12 col-md-4 col-lg-3">
+          <div class="card-dark p-3 h-100" data-bdtype="{{ item.bd['type'] if item.bd else '' }}" data-label="{{ item.display_label }}">
+            <div class="fw-bold">{{ item.display_label }}</div>
+            <div class="muted small d-flex align-items-center">{% if item.bd %}{% set phase_text = item.bd['phase'] %}{% include 'partials/moon_icon.html' with context %}{% endif %}<span>{{ item.bd['phase'] if item.bd else '' }}</span></div>
+            <div class="fs-6 fw-semibold" data-tmin="{{ d['temp_min'] }}" data-tmax="{{ d['temp_max'] }}">{{ d['temp_min']|round }}–{{ d['temp_max']|round }}°{{ 'C' }}</div>
+            <div class="badge-soft mt-1">POP {{ (d['pop'] or 0)*100|round }}%</div>
+            {% if item.bd %}
+              <div class="small mt-1">BD: {{ item.bd['type'] }}</div>
+            {% endif %}
+            <div class="small text-secondary mt-1">{{ item.suggestion }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- Almanac View -->
+  <section class="view-slide" id="slide-almanac">
+    <div class="section-title">Almanac (Lunar + BD)</div>
+    <div class="glass p-3">
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="card-dark p-3 h-100">
+            <div class="fw-bold mb-2">Today & Next Days</div>
+            <ul class="list-unstyled mb-0">
+              {% if bd %}
+              <li class="mb-2 d-flex align-items-start">
+                <div class="me-2">{% include 'partials/bd_icon.html' with context %}</div>
+                <div>
+                  <div class="fw-semibold">{{ day_label(bd['date'], current_date) }}</div>
+                  <div class="small muted">{{ bd['type'] }} | {% include 'partials/moon_icon.html' with context %} {{ bd['phase'] }}</div>
+                  <div class="small">{{ bd['activities'] }}</div>
+                </div>
+              </li>
+              {% endif %}
+              {% for item in forecast[:4] %}
+                {% if item.bd %}
+                <li class="mb-2 d-flex align-items-start">
+                  <div class="me-2">{% set bd_for_icon = item.bd %}{% include 'partials/bd_icon.html' with context %}</div>
+                  <div>
+                    <div class="fw-semibold">{{ item.display_label }}</div>
+                    <div class="small muted">{{ item.bd['type'] }} | {% set phase_text = item.bd['phase'] %}{% include 'partials/moon_icon.html' with context %} {{ item.bd['phase'] }}</div>
+                    <div class="small">{{ item.bd['activities'] }}</div>
+                  </div>
+                </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card-dark p-3 h-100">
+            {% if soundtrack and soundtrack|length > 0 %}
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="metric-label">Soundtrack</div>
+                <button class="btn btn-sm btn-outline-light pill-btn" id="muteToggle">Unmute</button>
+              </div>
+              <audio id="ks-audio" controls loop class="w-100 mb-2" muted>
+                <source src="{{ url_for('static', filename='music/' + soundtrack[0]) }}">
+                Your browser does not support the audio element.
+              </audio>
+              <div class="small text-secondary">Playlist</div>
+              <ul class="list-unstyled small mb-0" id="ks-playlist">
+                {% for track in soundtrack %}
+                <li class="mb-1">
+                  <a href="{{ url_for('static', filename='music/' + track) }}" class="text-decoration-none">{{ track }}</a>
+                </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="muted">Add tracks to static/music to enable soundtrack.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-end">
+    <div class="modal-content" id="settingsPanel">
+      <div class="modal-header">
+        <h5 class="modal-title">Settings</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="toggleTts">
+          <label class="form-check-label" for="toggleTts">Enable announcements (voice)</label>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Voice</label>
+          <select class="form-select form-select-sm" id="voiceSelect"></select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Announcement speed</label>
+          <input type="range" class="form-range" id="voiceRate" min="0.6" max="1.3" step="0.05" value="0.95">
+        </div>
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="toggleMute">
+          <label class="form-check-label" for="toggleMute">Background music (mute/unmute)</label>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Units</label>
+          <select class="form-select form-select-sm" id="unitSelect">
+            <option value="metric">Metric (°C)</option>
+            <option value="imperial">Imperial (°F)</option>
+          </select>
+        </div>
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="toggleKiosk">
+          <label class="form-check-label" for="toggleKiosk">Kiosk mode (fullscreen)</label>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Scroll speed (seconds per slide)</label>
+          <input type="number" min="5" max="60" step="1" class="form-control form-control-sm" id="scrollSpeed" value="12">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="saveSettings">Save</button>
+      </div>
     </div>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // Auto-rotate forecast cards
-  const slides = Array.from(document.querySelectorAll('.slide'));
-  let idx = 0;
-  if (slides.length > 0) {
-    setInterval(() => {
-      slides[idx].classList.remove('active');
-      idx = (idx + 1) % slides.length;
-      slides[idx].classList.add('active');
-      // scroll into view inside strip
-      slides[idx].scrollIntoView({behavior: 'smooth', inline: 'center', block: 'nearest'});
-    }, 8000);
+  const ttsDefault = {{ 'true' if tts_enabled else 'false' }};
+  const defaultVoiceName = 'English (America)+Robosoft2 (en-US)';
+  const slides = [document.getElementById('slide-current'), document.getElementById('slide-outlook-3'), document.getElementById('slide-outlook-7'), document.getElementById('slide-almanac')];
+  let slideIndex = 0;
+  let scrollIntervalMs = ttsDefault ? 20000 : 12000;
+  let slideTimer;
+  let speechUtterance = null;
+
+  function cycleSlides() {
+    slideTimer && clearInterval(slideTimer);
+    slideTimer = setInterval(() => {
+      slides[slideIndex].classList.remove('active');
+      slideIndex = (slideIndex + 1) % slides.length;
+      slides[slideIndex].classList.add('active');
+      speakSlide(slideIndex);
+    }, scrollIntervalMs);
   }
 
-  // Poll /api/status every 5 minutes to refresh hero text and alerts
+  function loadPrefs() {
+    const prefs = JSON.parse(localStorage.getItem('ks_prefs') || '{}');
+    if (prefs.tts === true) document.getElementById('toggleTts').checked = true;
+    if (prefs.tts === undefined && ttsDefault) document.getElementById('toggleTts').checked = true;
+    if (prefs.muted === false) { document.getElementById('toggleMute').checked = true; toggleAudio(false); }
+    if (prefs.units) document.getElementById('unitSelect').value = prefs.units;
+    if (prefs.kiosk === true) { document.getElementById('toggleKiosk').checked = true; enterFullscreen(); }
+    if (prefs.scrollSeconds) { document.getElementById('scrollSpeed').value = prefs.scrollSeconds; }
+    const ttsOn = prefs.tts === true || (prefs.tts === undefined && ttsDefault);
+    const baseMs = (prefs.scrollSeconds || 12) * 1000;
+    scrollIntervalMs = ttsOn ? Math.max(baseMs, 20000) : baseMs;
+    if (prefs.voiceRate) document.getElementById('voiceRate').value = prefs.voiceRate;
+    if (prefs.voice) {
+      document.getElementById('voiceSelect').dataset.pendingVoice = prefs.voice;
+    } else {
+      document.getElementById('voiceSelect').dataset.pendingVoice = defaultVoiceName;
+    }
+    applyUnitToTemps(document.getElementById('unitSelect').value || 'metric');
+    return prefs;
+  }
+
+  function savePrefs() {
+    const prefs = {
+      tts: document.getElementById('toggleTts').checked,
+      muted: !document.getElementById('toggleMute').checked,
+      units: document.getElementById('unitSelect').value,
+      kiosk: document.getElementById('toggleKiosk').checked,
+      scrollSeconds: parseInt(document.getElementById('scrollSpeed').value, 10) || 12,
+      voice: document.getElementById('voiceSelect').value || '',
+      voiceRate: parseFloat(document.getElementById('voiceRate').value) || 0.95,
+    };
+    localStorage.setItem('ks_prefs', JSON.stringify(prefs));
+    // apply
+    if (prefs.muted) toggleAudio(true); else toggleAudio(false);
+    const ttsOn = prefs.tts === true || (prefs.tts === undefined && ttsDefault);
+    const baseMs = prefs.scrollSeconds * 1000;
+    scrollIntervalMs = ttsOn ? Math.max(baseMs, 20000) : baseMs;
+    cycleSlides();
+    if (prefs.kiosk) enterFullscreen(); else exitFullscreen();
+    // For TTS, reload with query param to set cookie
+    const url = new URL(window.location.href);
+    url.searchParams.set('tts', prefs.tts ? 'on' : 'off');
+    window.location.href = url.toString();
+  }
+
+  function populateVoices(prefs) {
+    const select = document.getElementById('voiceSelect');
+    if (!select) return;
+    if (!('speechSynthesis' in window)) {
+      select.innerHTML = '<option value="">Not supported</option>';
+      select.disabled = true;
+      return;
+    }
+
+    let voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) {
+      select.innerHTML = '<option value="">Loading voices…</option>';
+      return;
+    }
+
+    const enUs = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en-us'));
+    const enFallback = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+    voices = enUs.length ? enUs : (enFallback.length ? enFallback : voices);
+
+    const desired = (prefs && prefs.voice) || select.dataset.pendingVoice || defaultVoiceName || '';
+    select.innerHTML = '';
+    const defOpt = document.createElement('option');
+    defOpt.value = '';
+    defOpt.textContent = enUs.length ? 'Default (en-US)' : 'Browser default';
+    select.appendChild(defOpt);
+
+    voices.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.name;
+      opt.textContent = `${v.name} (${v.lang})`;
+      if (desired && desired === v.name) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    if (desired && !prefs?.voice && select.value === desired) {
+      // Preselect default voice without forcing a save.
+      select.value = desired;
+    }
+    if (desired) delete select.dataset.pendingVoice;
+  }
+
+  function toggleAudio(mute) {
+    const audio = document.getElementById('ks-audio');
+    if (!audio) return;
+    audio.muted = mute;
+    if (!mute) audio.play().catch(() => {});
+    document.getElementById('muteToggle')?.classList.toggle('btn-outline-light', mute);
+  }
+
+  function enterFullscreen() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+  }
+  function exitFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }
+
+  document.getElementById('saveSettings').addEventListener('click', savePrefs);
+  document.getElementById('muteToggle')?.addEventListener('click', () => {
+    const audio = document.getElementById('ks-audio');
+    if (!audio) return;
+    const newMute = !audio.muted;
+    toggleAudio(newMute);
+    // mirror to switch
+    const toggle = document.getElementById('toggleMute');
+    if (toggle) toggle.checked = !newMute;
+  });
+
+  // Auto poll status
+  function applyUnitToTemps(unit) {
+    const convert = (v) => v == null ? null : (unit === 'imperial' ? (v * 9/5 + 32) : v);
+    const label = unit === 'imperial' ? 'F' : 'C';
+    // Current card
+    const tminEl = document.getElementById('temp-range');
+    if (tminEl && tminEl.dataset) {
+      const rawMin = parseFloat(tminEl.dataset.rawMin);
+      const rawMax = parseFloat(tminEl.dataset.rawMax);
+      const cMin = isNaN(rawMin) ? null : rawMin;
+      const cMax = isNaN(rawMax) ? null : rawMax;
+      const vmin = convert(cMin);
+      const vmax = convert(cMax);
+      tminEl.textContent = `${vmin != null ? Math.round(vmin) : '–'}–${vmax != null ? Math.round(vmax) : '–'}°${label}`;
+    }
+
+    // Forecast cards (data attributes on spans)
+    document.querySelectorAll('[data-tmin][data-tmax]').forEach(el => {
+      const rawMin = parseFloat(el.getAttribute('data-tmin'));
+      const rawMax = parseFloat(el.getAttribute('data-tmax'));
+      const cMin = isNaN(rawMin) ? null : rawMin;
+      const cMax = isNaN(rawMax) ? null : rawMax;
+      const vmin = convert(cMin);
+      const vmax = convert(cMax);
+      el.textContent = `${vmin != null ? Math.round(vmin) : '–'}–${vmax != null ? Math.round(vmax) : '–'}°${label}`;
+    });
+  }
+
+  function renderKpBar(kpVal) {
+    const bar = document.getElementById('kp-bar');
+    if (!bar) return;
+    const level = Math.max(0, Math.floor(Number(kpVal)));
+    Array.from(bar.children).forEach((cell, idx) => {
+      cell.className = 'kp-cell';
+      if (idx < level) cell.classList.add(`on-${idx + 1}`);
+    });
+  }
+
   async function refreshStatus() {
     try {
       const res = await fetch('/api/status');
@@ -192,16 +468,20 @@
         document.getElementById('bd-notes').textContent = data.bd.notes || '';
       }
       if (data.weather) {
-        const tmin = data.weather.temp_min !== null ? Math.round(data.weather.temp_min) : '–';
-        const tmax = data.weather.temp_max !== null ? Math.round(data.weather.temp_max) : '–';
-        document.getElementById('temp-range').textContent = `${tmin}–${tmax}°C`;
+        const tminEl = document.getElementById('temp-range');
+        if (tminEl) {
+          tminEl.dataset.rawMin = data.weather.temp_min;
+          tminEl.dataset.rawMax = data.weather.temp_max;
+        }
         document.getElementById('wx-desc').textContent = data.weather.description || '';
         const popPct = Math.round((data.weather.pop || 0) * 100);
         document.getElementById('wx-pop').textContent = `POP ${popPct}%`;
+        applyUnitToTemps((JSON.parse(localStorage.getItem('ks_prefs') || '{}').units || 'metric'));
       }
       if (data.space) {
         document.getElementById('kp-now').textContent = `Kp ${data.space.kp_now ?? 'n/a'}`;
         document.getElementById('space-summary').textContent = data.space.summary || '';
+        renderKpBar(data.space.kp_now);
       }
       if (data.suggestion) {
         document.getElementById('today-suggestion').textContent = data.suggestion;
@@ -226,7 +506,77 @@
       console.warn('Refresh failed', err);
     }
   }
+
+  const initialPrefs = loadPrefs();
+  populateVoices(initialPrefs);
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.addEventListener('voiceschanged', () => populateVoices(JSON.parse(localStorage.getItem('ks_prefs') || '{}')));
+  }
+  speakSlide(0);
+  cycleSlides();
   setInterval(refreshStatus, 5 * 60 * 1000);
+
+  function speakSlide(idx) {
+    const prefs = JSON.parse(localStorage.getItem('ks_prefs') || '{}');
+    const ttsOn = prefs.tts === true || (prefs.tts === undefined && ttsDefault);
+    if (!ttsOn || !('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    let text = '';
+    if (idx === 0) {
+      const bd = document.getElementById('bd-type')?.textContent || '';
+      const phase = document.querySelector('#slide-current .text-secondary')?.textContent || '';
+      const note = (document.getElementById('bd-notes')?.textContent || '').trim();
+      const rawMin = parseFloat(document.getElementById('temp-range')?.dataset.rawMin || '');
+      const rawMax = parseFloat(document.getElementById('temp-range')?.dataset.rawMax || '');
+      const unitSel = document.getElementById('unitSelect')?.value || 'metric';
+      const toUnit = (v) => {
+        if (!Number.isFinite(v)) return null;
+        return unitSel === 'imperial' ? (v * 9/5 + 32) : v;
+      };
+      const low = toUnit(rawMin);
+      const high = toUnit(rawMax);
+      const unitWord = unitSel === 'imperial' ? 'fahrenheit' : 'celsius';
+      const popText = document.getElementById('wx-pop')?.textContent || '';
+      const popMatch = popText.match(/POP\s+(\d+)/i);
+      const popPct = popMatch ? popMatch[1] : '';
+      const kpText = document.getElementById('kp-now')?.textContent || '';
+      const kpMatch = kpText.match(/([\d\.]+)/);
+      const kpVal = kpMatch ? kpMatch[1] : '';
+      const suggestion = document.getElementById('today-suggestion')?.textContent || '';
+      const tempPart = (low != null && high != null) ? `Low ${Math.round(low)} and high ${Math.round(high)} degrees ${unitWord}.` : '';
+      const popPart = popPct ? `Chance of precipitation ${popPct} percent.` : '';
+      const kpPart = kpVal ? `K P index ${kpVal}.` : '';
+      const notePart = note ? `Note: ${note}.` : '';
+      text = `Current Conditions. ${bd}. ${phase}. ${tempPart} ${popPart} ${kpPart} ${notePart} ${suggestion}`;
+    } else if (idx === 1) {
+      text = 'Planting Outlook.';
+    } else if (idx === 2) {
+      const cards = Array.from(document.querySelectorAll('#slide-outlook-7 [data-bdtype]'));
+      const restCard = cards.find(c => {
+        const t = (c.getAttribute('data-bdtype') || '').toLowerCase();
+        return t.includes('rest') || t.includes('barren');
+      });
+      const restLabel = restCard ? restCard.getAttribute('data-label') : '';
+      const restPart = restLabel ? `Rest day approaching on ${restLabel}.` : '';
+      text = `Extended Planting Outlook. ${restPart}`;
+    } else if (idx === 3) {
+      text = 'Enhanced Almanac.';
+    }
+
+    if (!text.trim()) return;
+    const u = new SpeechSynthesisUtterance(text);
+    const voiceName = prefs.voice || document.getElementById('voiceSelect')?.value || defaultVoiceName || '';
+    if (voiceName && 'speechSynthesis' in window) {
+      const voices = window.speechSynthesis.getVoices();
+      const match = voices.find(v => v.name === voiceName);
+      if (match) u.voice = match;
+    }
+    const rate = Number(prefs.voiceRate);
+    u.rate = Number.isFinite(rate) ? rate : 0.95;
+    window.speechSynthesis.speak(u);
+  }
 </script>
 </body>
 </html>
