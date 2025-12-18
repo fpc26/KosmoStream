@@ -4,7 +4,8 @@ from db import get_db, init_db
 LAT = 40.094200
 LON = -75.909700
 API_KEY = os.environ.get("OWM_API_KEY")
-ONECALL = "https://api.openweathermap.org/data/3.0/onecall"
+# Default to the 2.5 One Call endpoint (works on the free tier); allow override via env.
+ONECALL = os.environ.get("OWM_ONECALL_URL", "https://api.openweathermap.org/data/2.5/onecall")
 
 def main():
     init_db()
@@ -18,7 +19,11 @@ def main():
         "exclude": "minutely,hourly,alerts",
     }
     r = requests.get(ONECALL, params=params, timeout=10)
-    r.raise_for_status()
+    try:
+        r.raise_for_status()
+    except requests.HTTPError as exc:
+        # Surface a clearer message for common auth issues.
+        raise SystemExit(f"Weather fetch failed ({exc}); check OWM_API_KEY and endpoint {ONECALL}")
     daily = r.json().get("daily", [])
     conn = get_db()
     cur = conn.cursor()
