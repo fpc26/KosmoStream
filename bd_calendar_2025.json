@@ -1,103 +1,103 @@
 {
-  "2026": {
-    "2026-12-19": {
-      "date": "2026-12-19",
+  "2025": {
+    "2025-12-19": {
+      "date": "2025-12-19",
       "phase": "Waning Crescent",
       "sign": "Scorpio to Sagittarius at approx 17:00 UTC",
       "type": "Leaf to Fruit",
       "activities": "Harvest/fertilize/transplant; mow/prune to reduce growth; avoid sowing",
       "notes": "-"
     },
-    "2026-12-20": {
-      "date": "2026-12-20",
+    "2025-12-20": {
+      "date": "2025-12-20",
       "phase": "New Moon",
       "sign": "Sagittarius to Capricorn at approx 00:00 UTC",
       "type": "Fruit to Root",
       "activities": "Rest, meditate; avoid major gardening activities",
       "notes": "New Moon at 01:43 UTC"
     },
-    "2026-12-21": {
-      "date": "2026-12-21",
+    "2025-12-21": {
+      "date": "2025-12-21",
       "phase": "Waxing Crescent",
       "sign": "Capricorn",
       "type": "Root",
       "activities": "Sow/plant below-ground (esp. roots); plant trees/shrubs; mow/prune for growth",
       "notes": "-"
     },
-    "2026-12-22": {
-      "date": "2026-12-22",
+    "2025-12-22": {
+      "date": "2025-12-22",
       "phase": "Waxing Crescent",
       "sign": "Capricorn to Aquarius at approx 11:00 UTC",
       "type": "Root to Flower",
       "activities": "Sow/plant below-ground (esp. roots) or above-ground (esp. flowers); mow/graft/prune for growth",
       "notes": "-"
     },
-    "2026-12-23": {
-      "date": "2026-12-23",
+    "2025-12-23": {
+      "date": "2025-12-23",
       "phase": "Waxing Crescent",
       "sign": "Aquarius",
       "type": "Flower",
       "activities": "Sow/plant above-ground (esp. flowers); mow/graft/prune for growth",
       "notes": "-"
     },
-    "2026-12-24": {
-      "date": "2026-12-24",
+    "2025-12-24": {
+      "date": "2025-12-24",
       "phase": "Waxing Crescent",
       "sign": "Aquarius to Pisces at approx 20:00 UTC",
       "type": "Flower to Leaf",
       "activities": "Sow/plant above-ground (esp. flowers or leaf plants); mow/graft/prune for growth",
       "notes": "-"
     },
-    "2026-12-25": {
-      "date": "2026-12-25",
+    "2025-12-25": {
+      "date": "2025-12-25",
       "phase": "Waxing Crescent",
       "sign": "Pisces",
       "type": "Leaf",
       "activities": "Sow/plant above-ground (esp. leaf plants, cereals, herbs, cucumbers); mow/graft/prune for growth",
       "notes": "Ascending node at approx 14:00 UTC"
     },
-    "2026-12-26": {
-      "date": "2026-12-26",
+    "2025-12-26": {
+      "date": "2025-12-26",
       "phase": "Waxing Crescent",
       "sign": "Pisces",
       "type": "Leaf",
       "activities": "Sow/plant above-ground (esp. leaf plants, cereals, herbs, cucumbers); mow/graft/prune for growth",
       "notes": "-"
     },
-    "2026-12-27": {
-      "date": "2026-12-27",
+    "2025-12-27": {
+      "date": "2025-12-27",
       "phase": "First Quarter",
       "sign": "Pisces to Aries at approx 03:00 UTC",
       "type": "Leaf to Fruit",
       "activities": "Sow/plant above-ground (esp. leaf or fruit plants); mow/graft/prune for growth",
       "notes": "First Quarter approx midday UTC"
     },
-    "2026-12-28": {
-      "date": "2026-12-28",
+    "2025-12-28": {
+      "date": "2025-12-28",
       "phase": "Waxing Gibbous",
       "sign": "Aries",
       "type": "Fruit",
       "activities": "Sow/plant above-ground (esp. fruit plants, cereals, flowers); mow/graft/prune for growth",
       "notes": "-"
     },
-    "2026-12-29": {
-      "date": "2026-12-29",
+    "2025-12-29": {
+      "date": "2025-12-29",
       "phase": "Waxing Gibbous",
       "sign": "Aries to Taurus at approx 07:00 UTC",
       "type": "Fruit to Root",
       "activities": "Sow/plant above-ground (esp. fruit plants) or below-ground (esp. roots); mow/graft/prune for growth",
       "notes": "-"
     },
-    "2026-12-30": {
-      "date": "2026-12-30",
+    "2025-12-30": {
+      "date": "2025-12-30",
       "phase": "Waxing Gibbous",
       "sign": "Taurus",
       "type": "Root",
       "activities": "Sow/plant below-ground (esp. roots); plant trees/shrubs; mow/prune for growth",
       "notes": "-"
     },
-    "2026-12-31": {
-      "date": "2026-12-31",
+    "2025-12-31": {
+      "date": "2025-12-31",
       "phase": "Waxing Gibbous",
       "sign": "Taurus",
       "type": "Root",
