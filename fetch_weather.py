@@ -3,11 +3,13 @@ from db import get_db, init_db
 
 LAT = 40.094200
 LON = -75.909700
-API_KEY = os.environ.get("OWM_API_KEY", "956ffccafd2e2a2da45744612aa42c4a")
+API_KEY = os.environ.get("OWM_API_KEY")
 ONECALL = "https://api.openweathermap.org/data/3.0/onecall"
 
 def main():
     init_db()
+    if not API_KEY:
+        raise RuntimeError("OWM_API_KEY is not set in environment")
     params = {
         "lat": LAT,
         "lon": LON,
