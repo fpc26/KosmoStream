@@ -166,16 +166,23 @@ def index():
 def status():
     today = datetime.date.today().isoformat()
     conn = get_db()
-    bd = conn.execute("SELECT * FROM bd_calendar WHERE date=?", (today,)).fetchone()
-    wx = conn.execute("SELECT * FROM weather_daily WHERE date=?", (today,)).fetchone()
-    space = conn.execute(
+    bd_row = conn.execute("SELECT * FROM bd_calendar WHERE date=?", (today,)).fetchone()
+    wx_row = conn.execute("SELECT * FROM weather_daily WHERE date=?", (today,)).fetchone()
+    space_row = conn.execute(
         "SELECT * FROM space_weather ORDER BY fetched_at DESC LIMIT 1"
     ).fetchone()
+    bd = dict(bd_row) if bd_row else None
+    wx = dict(wx_row) if wx_row else None
+    space = dict(space_row) if space_row else None
+    today_suggestion = build_suggestion(bd, wx, space)
+    alerts = collect_alerts(bd, wx, space)
     conn.close()
     return jsonify({
-        "bd": dict(bd) if bd else None,
-        "weather": dict(wx) if wx else None,
-        "space": dict(space) if space else None,
+        "bd": bd,
+        "weather": wx,
+        "space": space,
+        "suggestion": today_suggestion,
+        "alerts": alerts,
     })
 
 if __name__ == "__main__":

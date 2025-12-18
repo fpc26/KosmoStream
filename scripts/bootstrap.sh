@@ -10,6 +10,9 @@ if [[ -z "${OWM_API_KEY:-}" ]]; then
   echo "[ERROR] OWM_API_KEY is not set. Export it before running (e.g., export OWM_API_KEY=your_key)." >&2
   exit 1
 fi
+if [[ -n "${OWM_ENDPOINT:-}" ]]; then
+  echo "[INFO] Using custom OWM_ENDPOINT=${OWM_ENDPOINT}"
+fi
 
 # Optional toggles
 : "${TTS_ENABLED:=false}"   # set true to enable TTS

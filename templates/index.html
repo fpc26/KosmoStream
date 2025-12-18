@@ -4,103 +4,229 @@
   <meta charset="utf-8">
   <title>KosmoStream</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: radial-gradient(circle at 20% 20%, #16213e 0%, #0a0f1f 35%, #050910 100%);
+      color: #e9edf5;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      backdrop-filter: blur(6px);
+      border-radius: 18px;
+    }
+    .hero-title { letter-spacing: 0.04em; }
+    .ticker {
+      background: linear-gradient(90deg, #d7263d, #f19a3e);
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 600;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+    }
+    .metric-label { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: #9fb3c8; }
+    .metric-value { font-size: 2rem; font-weight: 700; }
+    .badge-soft { background: rgba(255,255,255,0.12); color: #c7d3e3; border-radius: 10px; padding: 4px 8px; font-size: 0.8rem; }
+    .forecast-strip { overflow-x: auto; white-space: nowrap; }
+    .forecast-card { display: inline-block; width: 200px; margin-right: 12px; vertical-align: top; }
+    .card-dark { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); color: #e9edf5; }
+    .muted { color: #a8b6c8; }
+    .pulse { animation: pulse 2.5s ease-in-out infinite; }
+    @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
+    .slide { display: none; }
+    .slide.active { display: block; }
+  </style>
 </head>
-<body class="bg-dark text-light">
-<div class="container py-4">
-  <div class="d-flex align-items-center justify-content-between mb-4">
-    <h1 class="mb-0">KosmoStream</h1>
-    <span class="badge bg-secondary">{{ current_date }}</span>
+<body>
+<div class="container-fluid py-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h1 class="hero-title fw-bold mb-0">KosmoStream</h1>
+      <div class="small text-secondary">Cosmic-aligned planting stream</div>
+    </div>
+    <span class="badge-soft">{{ current_date }}</span>
   </div>
 
   {% if alerts and alerts|length > 0 %}
-    <div class="mb-3">
-      {% for alert in alerts %}
-        <div class="alert alert-{{ alert.level }} mb-2" role="alert">
-          {{ alert.text }}
-        </div>
-      {% endfor %}
-    </div>
+    <div class="ticker mb-3" id="ks-ticker">{{ alerts[0].text }}</div>
+  {% else %}
+    <div class="ticker mb-3" id="ks-ticker">{{ today_suggestion }}</div>
   {% endif %}
 
   <div class="row g-3">
-    <div class="col-md-6">
-      <div class="card text-dark">
-        <div class="card-body">
-          <h5 class="card-title">Today (BD)</h5>
-          {% if bd %}
-            <p class="mb-1"><strong>{{ bd['date'] }}</strong> — {{ bd['type'] }} | {{ bd['phase'] }}</p>
-            <p class="mb-1">{{ bd['activities'] }}</p>
-            <p class="text-muted mb-0">{{ bd['notes'] }}</p>
-            <p class="mt-2 mb-0 fw-semibold">Suggestion: {{ today_suggestion }}</p>
-          {% else %}
-            <p>No BD data for today.</p>
-          {% endif %}
+    <div class="col-lg-8">
+      <div class="glass p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <div class="metric-label">Today</div>
+            <div class="metric-value" id="bd-type">{{ bd['type'] if bd else 'No BD data' }}</div>
+            <div class="text-secondary">{{ bd['phase'] if bd else '' }}</div>
+          </div>
+          <div class="text-end">
+            <div class="metric-label">Suggestion</div>
+            <div class="fw-semibold" id="today-suggestion">{{ today_suggestion }}</div>
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="card-dark p-3 h-100">
+              <div class="metric-label">Weather</div>
+              {% if wx %}
+                <div class="metric-value" id="temp-range">{{ wx['temp_min']|round }}–{{ wx['temp_max']|round }}°C</div>
+                <div class="muted" id="wx-desc">{{ wx['description'] }}</div>
+                <div class="badge-soft mt-2" id="wx-pop">POP {{ (wx['pop'] or 0)*100|round }}%</div>
+              {% else %}
+                <div class="muted">No weather data yet.</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card-dark p-3 h-100">
+              <div class="metric-label">Space Weather</div>
+              {% if space %}
+                <div class="metric-value" id="kp-now">Kp {{ space['kp_now'] or 'n/a' }}</div>
+                <div class="muted" id="space-summary">{{ space['summary'] }}</div>
+              {% else %}
+                <div class="muted">No space data yet.</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card-dark p-3 h-100">
+              <div class="metric-label">BD Notes</div>
+              {% if bd %}
+                <div class="fw-semibold" id="bd-activities">{{ bd['activities'] }}</div>
+                <div class="muted" id="bd-notes">{{ bd['notes'] }}</div>
+              {% else %}
+                <div class="muted">No BD data yet.</div>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </div>
     </div>
-
-    <div class="col-md-6">
-      <div class="card text-dark">
-        <div class="card-body">
-          <h5 class="card-title">Today (Weather / Space)</h5>
-          {% if wx %}
-            <p class="mb-1">Temp: {{ wx['temp_min']|round }}–{{ wx['temp_max']|round }} °C | POP {{ (wx['pop'] or 0)*100|round }}%</p>
-            <p class="mb-1">Sky: {{ wx['description'] }}</p>
+    <div class="col-lg-4">
+      <div class="glass p-4 h-100">
+        <div class="metric-label">Aurora / Alerts</div>
+        <div class="fw-bold fs-4 mb-2">Live Signals</div>
+        <ul class="list-unstyled mb-3" id="alert-list">
+          {% if alerts and alerts|length > 0 %}
+            {% for alert in alerts %}
+              <li class="mb-2">• {{ alert.text }}</li>
+            {% endfor %}
           {% else %}
-            <p>No weather data yet.</p>
+              <li class="text-secondary">No active alerts</li>
           {% endif %}
-          {% if space %}
-            <p class="mb-0">Space: {{ space['summary'] }}</p>
-          {% endif %}
-        </div>
+        </ul>
+        {% if soundtrack and soundtrack|length > 0 %}
+          <div class="metric-label">Soundtrack</div>
+          <audio id="ks-audio" controls loop class="w-100 mb-2">
+            <source src="{{ url_for('static', filename='music/' + soundtrack[0]) }}">
+            Your browser does not support the audio element.
+          </audio>
+          <div class="small text-secondary">Playlist</div>
+          <ul class="list-unstyled small mb-0" id="ks-playlist">
+            {% for track in soundtrack %}
+            <li class="mb-1">
+              <a href="{{ url_for('static', filename='music/' + track) }}" class="text-decoration-none">{{ track }}</a>
+            </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="muted">Add tracks to static/music to enable soundtrack.</div>
+        {% endif %}
       </div>
     </div>
   </div>
 
-  <div class="mt-4">
-    <h5>7-Day Forecast</h5>
-    <div class="row g-3">
+  <div class="glass p-3 mt-4">
+    <div class="d-flex align-items-center mb-2">
+      <h5 class="mb-0">7-Day Strip</h5>
+      <span class="badge-soft ms-2">Auto rotates</span>
+    </div>
+    <div class="forecast-strip" id="forecast-strip">
       {% for item in forecast %}
       {% set d = item.wx %}
-      <div class="col-6 col-md-3">
-        <div class="card text-dark">
-          <div class="card-body">
-            <p class="mb-1"><strong>{{ d['date'] }}</strong></p>
-            <p class="mb-1">{{ d['temp_min']|round }}–{{ d['temp_max']|round }} °C</p>
-            <p class="mb-1">POP {{ (d['pop'] or 0)*100|round }}%</p>
-            <p class="text-muted small mb-0">{{ d['description'] }}</p>
-            {% if item.bd %}
-              <p class="small mb-1">BD: {{ item.bd['type'] }} | {{ item.bd['phase'] }}</p>
-            {% endif %}
-            <p class="small text-secondary mb-0">{{ item.suggestion }}</p>
-          </div>
-        </div>
+      <div class="forecast-card card-dark p-3 slide {% if loop.index == 1 %}active{% endif %}">
+        <div class="fw-bold">{{ d['date'] }}</div>
+        <div class="muted small">{{ item.bd['phase'] if item.bd else '' }}</div>
+        <div class="fs-5 fw-semibold">{{ d['temp_min']|round }}–{{ d['temp_max']|round }}°C</div>
+        <div class="badge-soft mb-2">POP {{ (d['pop'] or 0)*100|round }}%</div>
+        <div class="muted small">{{ d['description'] }}</div>
+        {% if item.bd %}
+          <div class="small mt-2">BD: {{ item.bd['type'] }} | {{ item.bd['phase'] }}</div>
+        {% endif %}
+        <div class="small text-secondary mt-1">{{ item.suggestion }}</div>
       </div>
       {% endfor %}
     </div>
   </div>
-
-  {% if soundtrack and soundtrack|length > 0 %}
-  <div class="mt-4">
-    <h5>Soundtrack</h5>
-    <div class="card text-dark">
-      <div class="card-body">
-        <p class="mb-2">Your local AI-generated tracks (static/music)</p>
-        <audio id="ks-audio" controls loop class="w-100 mb-3">
-          <source src="{{ url_for('static', filename='music/' + soundtrack[0]) }}">
-          Your browser does not support the audio element.
-        </audio>
-        <ul class="list-unstyled small mb-0" id="ks-playlist">
-          {% for track in soundtrack %}
-          <li class="mb-1">
-            <a href="{{ url_for('static', filename='music/' + track) }}" class="text-decoration-none">{{ track }}</a>
-          </li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </div>
-  {% endif %}
 </div>
+
+<script>
+  // Auto-rotate forecast cards
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let idx = 0;
+  if (slides.length > 0) {
+    setInterval(() => {
+      slides[idx].classList.remove('active');
+      idx = (idx + 1) % slides.length;
+      slides[idx].classList.add('active');
+      // scroll into view inside strip
+      slides[idx].scrollIntoView({behavior: 'smooth', inline: 'center', block: 'nearest'});
+    }, 8000);
+  }
+
+  // Poll /api/status every 5 minutes to refresh hero text and alerts
+  async function refreshStatus() {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.bd) {
+        document.getElementById('bd-type').textContent = data.bd.type || 'BD';
+        document.getElementById('bd-activities').textContent = data.bd.activities || '';
+        document.getElementById('bd-notes').textContent = data.bd.notes || '';
+      }
+      if (data.weather) {
+        const tmin = data.weather.temp_min !== null ? Math.round(data.weather.temp_min) : '–';
+        const tmax = data.weather.temp_max !== null ? Math.round(data.weather.temp_max) : '–';
+        document.getElementById('temp-range').textContent = `${tmin}–${tmax}°C`;
+        document.getElementById('wx-desc').textContent = data.weather.description || '';
+        const popPct = Math.round((data.weather.pop || 0) * 100);
+        document.getElementById('wx-pop').textContent = `POP ${popPct}%`;
+      }
+      if (data.space) {
+        document.getElementById('kp-now').textContent = `Kp ${data.space.kp_now ?? 'n/a'}`;
+        document.getElementById('space-summary').textContent = data.space.summary || '';
+      }
+      if (data.suggestion) {
+        document.getElementById('today-suggestion').textContent = data.suggestion;
+      }
+      if (data.alerts) {
+        const list = document.getElementById('alert-list');
+        list.innerHTML = '';
+        if (data.alerts.length === 0) {
+          list.innerHTML = '<li class="text-secondary">No active alerts</li>';
+          document.getElementById('ks-ticker').textContent = data.suggestion || 'All clear';
+        } else {
+          data.alerts.forEach(a => {
+            const li = document.createElement('li');
+            li.className = 'mb-2';
+            li.textContent = `• ${a.text}`;
+            list.appendChild(li);
+          });
+          document.getElementById('ks-ticker').textContent = data.alerts[0].text;
+        }
+      }
+    } catch (err) {
+      console.warn('Refresh failed', err);
+    }
+  }
+  setInterval(refreshStatus, 5 * 60 * 1000);
+</script>
 </body>
 </html>
