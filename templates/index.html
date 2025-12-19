@@ -41,9 +41,33 @@
     .modal-header, .modal-footer { border-color: rgba(255,255,255,0.08); }
     .form-control, .form-select { background-color: #0f1625; color: #e9edf5; border: 1px solid rgba(255,255,255,0.15); }
     .form-control:focus, .form-select:focus { background-color: #0f1625; color: #e9edf5; box-shadow: 0 0 0 0.15rem rgba(255,255,255,0.15); }
+    .bd-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .bd-fruit { background:#ffb347; }
+    .bd-root { background:#d48c2f; }
+    .bd-leaf { background:#76c893; }
+    .bd-flower { background:#ffd166; }
+    .bd-rest { background:#b0b8c2; }
+    .bd-barren { background:#b0b8c2; }
+    .mini-cal { display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; font-size: 0.75rem; }
+    .mini-day { padding:6px; border:1px solid rgba(255,255,255,0.08); border-radius:8px; background:rgba(255,255,255,0.04); min-height:48px; }
+    .mini-day .date { font-weight:600; font-size:0.8rem; }
+    .mini-day .type { font-size:0.7rem; text-transform:uppercase; }
+    .screen-overlay { position:fixed; inset:0; background:rgba(5,9,16,0.9); z-index:2000; display:none; align-items:center; justify-content:center; padding:1rem; }
+    .screen-picker { max-width:420px; width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:16px; padding:1rem; box-shadow:0 10px 40px rgba(0,0,0,0.4); }
+    .screen-picker h5 { margin-bottom:0.75rem; }
   </style>
 </head>
 <body>
+<div id="screenSelector" class="screen-overlay">
+  <div class="screen-picker">
+    <h5 class="fw-bold">Choose screens for your stream</h5>
+    <div id="screenList" class="mb-3"></div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary w-100" id="startStream">Start Stream</button>
+      <button class="btn btn-outline-light" id="selectAllScreens">Select All</button>
+    </div>
+  </div>
+</div>
 <div class="container-fluid py-3">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
@@ -52,14 +76,14 @@
     </div>
     <div class="d-flex gap-2 align-items-center">
       <span class="badge-soft">{{ current_date }}</span>
+      <button class="btn btn-sm btn-outline-light pill-btn" id="openScreens">Screens</button>
       <button class="btn btn-sm btn-outline-light pill-btn" data-bs-toggle="modal" data-bs-target="#settingsModal">Settings</button>
     </div>
   </div>
-
-  {% if alerts and alerts|length > 0 %}
-    <div class="ticker mb-3" id="ks-ticker">{{ alerts[0].text }}</div>
-  {% else %}
-    <div class="ticker mb-3" id="ks-ticker">{{ today_suggestion }}</div>
+  {% if soundtrack and soundtrack|length > 0 %}
+    <audio id="ks-audio" class="d-none" preload="auto" loop
+      data-playlist='[{% for track in soundtrack %}"{{ url_for('static', filename='music/' + track) }}"{% if not loop.last %}, {% endif %}{% endfor %}]'>
+    </audio>
   {% endif %}
 
   <div id="slides-wrapper">
@@ -94,9 +118,9 @@
         </div>
         <div class="col-md-4">
           <div class="card-dark p-3 h-100">
-            <div class="metric-label">Space Weather</div>
+            <div class="metric-label">Geomagnetic Activity</div>
             {% if space %}
-              <div class="metric-value" id="kp-now">Kp {{ space['kp_now'] or 'n/a' }}</div>
+              <div class="metric-value" id="kp-now" data-kp="{{ space['kp_now'] or '' }}">Kp {{ space['kp_now'] or 'n/a' }}</div>
               <div class="muted" id="space-summary">{{ space['summary'] }}</div>
               {% if space['kp_now'] is not none %}
               <div class="kp-bar mt-2" id="kp-bar">
@@ -128,7 +152,7 @@
 
   <!-- Planting Outlook 3d -->
   <section class="view-slide" id="slide-outlook-3">
-    <div class="section-title">Planting Outlook (3 days)</div>
+    <div class="section-title">Planting Outlook</div>
     <div class="glass p-3">
       <div class="row g-3">
         {% for item in forecast[:3] %}
@@ -153,14 +177,17 @@
 
   <!-- Extended Outlook 7d -->
   <section class="view-slide" id="slide-outlook-7">
-    <div class="section-title">Extended Planting Outlook (7 days)</div>
+    <div class="section-title">Extended Planting Outlook</div>
     <div class="glass p-3">
       <div class="row g-3">
-        {% for item in forecast[1:7] %}
+        {% for item in forecast[3:6] %}
         {% set d = item.wx %}
         <div class="col-12 col-md-4 col-lg-3">
           <div class="card-dark p-3 h-100" data-bdtype="{{ item.bd['type'] if item.bd else '' }}" data-label="{{ item.display_label }}">
-            <div class="fw-bold">{{ item.display_label }}</div>
+            <div class="fw-bold d-flex align-items-center">
+              {% if item.bd %}{% set bd_for_icon = item.bd %}{% include 'partials/bd_icon.html' with context %}{% endif %}
+              <span>{{ item.display_label }}</span>
+            </div>
             <div class="muted small d-flex align-items-center">{% if item.bd %}{% set phase_text = item.bd['phase'] %}{% include 'partials/moon_icon.html' with context %}{% endif %}<span>{{ item.bd['phase'] if item.bd else '' }}</span></div>
             <div class="fs-6 fw-semibold" data-tmin="{{ d['temp_min'] }}" data-tmax="{{ d['temp_max'] }}">{{ d['temp_min']|round }}–{{ d['temp_max']|round }}°{{ 'C' }}</div>
             <div class="badge-soft mt-1">POP {{ (d['pop'] or 0)*100|round }}%</div>
@@ -177,63 +204,110 @@
 
   <!-- Almanac View -->
   <section class="view-slide" id="slide-almanac">
-    <div class="section-title">Almanac (Lunar + BD)</div>
-    <div class="glass p-3">
+    <div class="section-title">Enhanced Almanac</div>
+    <div class="glass p-3" style="max-height:70vh; overflow:auto;">
       <div class="row g-3">
-        <div class="col-lg-6">
+        <div class="col-12">
           <div class="card-dark p-3 h-100">
-            <div class="fw-bold mb-2">Today & Next Days</div>
-            <ul class="list-unstyled mb-0">
-              {% if bd %}
-              <li class="mb-2 d-flex align-items-start">
-                <div class="me-2">{% include 'partials/bd_icon.html' with context %}</div>
-                <div>
-                  <div class="fw-semibold">{{ day_label(bd['date'], current_date) }}</div>
-                  <div class="small muted">{{ bd['type'] }} | {% include 'partials/moon_icon.html' with context %} {{ bd['phase'] }}</div>
-                  <div class="small">{{ bd['activities'] }}</div>
-                </div>
-              </li>
-              {% endif %}
-              {% for item in forecast[:4] %}
-                {% if item.bd %}
-                <li class="mb-2 d-flex align-items-start">
-                  <div class="me-2">{% set bd_for_icon = item.bd %}{% include 'partials/bd_icon.html' with context %}</div>
-                  <div>
-                    <div class="fw-semibold">{{ item.display_label }}</div>
-                    <div class="small muted">{{ item.bd['type'] }} | {% set phase_text = item.bd['phase'] %}{% include 'partials/moon_icon.html' with context %} {{ item.bd['phase'] }}</div>
-                    <div class="small">{{ item.bd['activities'] }}</div>
-                  </div>
-                </li>
-                {% endif %}
-              {% endfor %}
-            </ul>
-          </div>
-        </div>
-        <div class="col-lg-6">
-          <div class="card-dark p-3 h-100">
-            {% if soundtrack and soundtrack|length > 0 %}
-              <div class="d-flex align-items-center justify-content-between mb-2">
-                <div class="metric-label">Soundtrack</div>
-                <button class="btn btn-sm btn-outline-light pill-btn" id="muteToggle">Unmute</button>
+            {% if moon_phases %}
+            <div class="fw-bold mb-2">Moon Phases</div>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              {% for m in moon_phases %}
+              <div class="d-flex align-items-center gap-2 px-2 py-1 rounded" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); color:#e9edf5;">
+                <span>{% set phase_text = m.phase %}{% include 'partials/moon_icon.html' with context %}</span>
+                <span class="small">{{ m.phase }}</span>
+                <span class="text-secondary small">{{ m.date }}</span>
               </div>
-              <audio id="ks-audio" controls loop class="w-100 mb-2" muted>
-                <source src="{{ url_for('static', filename='music/' + soundtrack[0]) }}">
-                Your browser does not support the audio element.
-              </audio>
-              <div class="small text-secondary">Playlist</div>
-              <ul class="list-unstyled small mb-0" id="ks-playlist">
-                {% for track in soundtrack %}
-                <li class="mb-1">
-                  <a href="{{ url_for('static', filename='music/' + track) }}" class="text-decoration-none">{{ track }}</a>
-                </li>
-                {% endfor %}
-              </ul>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="fw-bold mb-2">Sun &amp; Moon Rise/Set <span class="text-secondary small">({{ astro_tz or 'local' }})</span></div>
+            {% if astro_events %}
+            <div class="row g-2">
+              {% for a in astro_events %}
+              <div class="col-12 col-md-4">
+                <div class="p-2 rounded astro-card" data-label="{{ a.label }}" data-sunrise="{{ a.sunrise or '' }}" data-sunset="{{ a.sunset or '' }}" data-moonrise="{{ a.moonrise or '' }}" data-moonset="{{ a.moonset or '' }}" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">
+                  <div class="fw-semibold small mb-1">{{ a.label }}</div>
+                  <div class="d-flex justify-content-between text-secondary" style="font-size:0.9rem;"><span>Sunrise</span><span>{{ a.sunrise or '—' }}</span></div>
+                  <div class="d-flex justify-content-between text-secondary" style="font-size:0.9rem;"><span>Sunset</span><span>{{ a.sunset or '—' }}</span></div>
+                  <div class="d-flex justify-content-between text-secondary" style="font-size:0.9rem;"><span>Moonrise</span><span>{{ a.moonrise or '—' }}</span></div>
+                  <div class="d-flex justify-content-between text-secondary" style="font-size:0.9rem;"><span>Moonset</span><span>{{ a.moonset or '—' }}</span></div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
             {% else %}
-              <div class="muted">Add tracks to static/music to enable soundtrack.</div>
+            <div class="text-secondary small">Rise/set times unavailable.</div>
             {% endif %}
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Biodynamic Outlook -->
+  <section class="view-slide" id="slide-bd-outlook">
+    <div class="section-title">Biodynamic Outlook</div>
+    <div class="glass p-3" style="max-height:70vh; overflow:auto;">
+      {% if bd_ranges %}
+      <div class="row g-2">
+        {% for r in bd_ranges %}
+        <div class="col-12 col-md-4 col-lg-4">
+          <div class="p-2 rounded bd-outlook-card" data-bdtype="{{ r.type|lower }}" data-range="{{ r.display_range }}" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); min-height:80px;">
+            <div class="d-flex align-items-center mb-1">
+              <div class="me-2">{% set bd_for_icon = {'type': r.type} %}{% include 'partials/bd_icon.html' with context %}</div>
+              {% if r.phase %}<div class="me-2">{% set phase_text = r.phase %}{% include 'partials/moon_icon.html' with context %}</div>{% endif %}
+              <div class="fw-semibold small">{{ r.display_range }}</div>
+            </div>
+            <div class="small text-uppercase">{{ r.type }}</div>
+            <div class="text-secondary" style="font-size:0.8rem;">{{ r.phase }}</div>
+            {% if r.activities %}<div class="text-secondary" style="font-size:0.8rem;">{{ r.activities }}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-secondary">No biodynamic periods available.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Vinter's Outlook (premium placeholder) -->
+  <section class="view-slide" id="slide-vinter">
+    <div class="section-title">Vinter's Outlook</div>
+    <div class="glass p-3" style="max-height:70vh; overflow:auto;">
+      <div class="row g-3">
+        <div class="col-12 col-lg-6">
+          <div class="card-dark p-3 h-100">
+            <div class="fw-bold mb-2">Cellar Timing Guidance</div>
+            <ul class="mb-0 text-secondary" style="line-height:1.4;">
+              <li>Fruit / Flower days: tastings & bottling shine; expect aromatic lift.</li>
+              <li>Leaf / Root days: avoid racking & bottling; keep interventions minimal.</li>
+              <li>Descending Moon: prioritize racking and bottling for stability.</li>
+              <li>Ascending Moon: oxygenation or aromatic opening tasks.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-12 col-lg-6">
+          <div class="card-dark p-3 h-100">
+            <div class="fw-bold mb-2">Energy of the Day</div>
+            <div class="text-secondary" style="line-height:1.5;">Tailored biodynamic + lunar context for winemaking tasks (harvest, racking, bottling, tasting). Premium view will auto-map BD calendar and moon phase to cellar actions.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KosmoGrow Advantage (premium placeholder) -->
+  <section class="view-slide" id="slide-kosmogrow">
+    <div class="section-title">KosmoGrow Advantage</div>
+    <div class="glass p-3" style="max-height:70vh; overflow:auto;">
+      <div class="card-dark p-3 mb-3">
+        <div class="fw-bold">Rotating Knowledge Nugget</div>
+        <div class="text-secondary" id="kosmogrow-tip" style="line-height:1.5;">Loading tip…</div>
+      </div>
+      <div class="text-secondary small">Premium lane for compost teas, biochar, biodynamic preps, and Kosmophytotrophia synergy. Tips rotate each pass.</div>
     </div>
   </section>
   </div>
@@ -251,14 +325,6 @@
         <div class="form-check form-switch mb-2">
           <input class="form-check-input" type="checkbox" id="toggleTts">
           <label class="form-check-label" for="toggleTts">Enable announcements (voice)</label>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Voice</label>
-          <select class="form-select form-select-sm" id="voiceSelect"></select>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Announcement speed</label>
-          <input type="range" class="form-range" id="voiceRate" min="0.6" max="1.3" step="0.05" value="0.95">
         </div>
         <div class="form-check form-switch mb-2">
           <input class="form-check-input" type="checkbox" id="toggleMute">
@@ -289,22 +355,43 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  const ttsDefault = {{ 'true' if tts_enabled else 'false' }};
-  const defaultVoiceName = 'English (America)+Robosoft2 (en-US)';
-  const slides = [document.getElementById('slide-current'), document.getElementById('slide-outlook-3'), document.getElementById('slide-outlook-7'), document.getElementById('slide-almanac')];
+  const ttsDefault = false; // Front-end speech disabled; Piper-only backend announcements
+  const allSlideMeta = [
+    { id: 'slide-current', label: 'Current Conditions' },
+    { id: 'slide-outlook-3', label: 'Planting Outlook' },
+    { id: 'slide-outlook-7', label: 'Extended Planting Outlook' },
+    { id: 'slide-almanac', label: 'Enhanced Almanac' },
+    { id: 'slide-bd-outlook', label: 'Biodynamic Outlook' },
+    { id: 'slide-vinter', label: "Vinter's Outlook" },
+    { id: 'slide-kosmogrow', label: 'KosmoGrow Advantage' },
+  ];
+  let slides = [];
   let slideIndex = 0;
   let scrollIntervalMs = ttsDefault ? 20000 : 12000;
   let slideTimer;
-  let speechUtterance = null;
 
-  function cycleSlides() {
-    slideTimer && clearInterval(slideTimer);
-    slideTimer = setInterval(() => {
-      slides[slideIndex].classList.remove('active');
-      slideIndex = (slideIndex + 1) % slides.length;
-      slides[slideIndex].classList.add('active');
-      speakSlide(slideIndex);
-    }, scrollIntervalMs);
+  function scheduleNextSlide(delayMs) {
+    clearTimeout(slideTimer);
+    if (!slides.length) return;
+    slideTimer = setTimeout(() => advanceSlide(), delayMs);
+  }
+
+  function advanceSlide() {
+    if (!slides.length) return;
+    slides[slideIndex].classList.remove('active');
+    slideIndex = (slideIndex + 1) % slides.length;
+    slides[slideIndex].classList.add('active');
+    if (slides[slideIndex].id === 'slide-kosmogrow') updateKosmoTip();
+    if (slides[slideIndex].id === 'slide-bd-outlook') scheduleBdEqualize();
+    const deferred = speakSlide(slideIndex);
+    if (deferred !== 'defer') scheduleNextSlide(scrollIntervalMs);
+  }
+
+  function startSlides() {
+    clearTimeout(slideTimer);
+    if (!slides.length) return;
+    const deferred = speakSlide(slideIndex);
+    if (deferred !== 'defer') scheduleNextSlide(scrollIntervalMs);
   }
 
   function loadPrefs() {
@@ -318,14 +405,68 @@
     const ttsOn = prefs.tts === true || (prefs.tts === undefined && ttsDefault);
     const baseMs = (prefs.scrollSeconds || 12) * 1000;
     scrollIntervalMs = ttsOn ? Math.max(baseMs, 20000) : baseMs;
-    if (prefs.voiceRate) document.getElementById('voiceRate').value = prefs.voiceRate;
-    if (prefs.voice) {
-      document.getElementById('voiceSelect').dataset.pendingVoice = prefs.voice;
-    } else {
-      document.getElementById('voiceSelect').dataset.pendingVoice = defaultVoiceName;
-    }
     applyUnitToTemps(document.getElementById('unitSelect').value || 'metric');
     return prefs;
+  }
+
+  function loadScreens() {
+    const stored = JSON.parse(localStorage.getItem('ks_screens') || '[]');
+    const defaults = allSlideMeta.map(s => s.id);
+    let ids = Array.isArray(stored) && stored.length ? stored : defaults;
+    ids = ids.filter(id => document.getElementById(id));
+    const missing = defaults.filter(id => !ids.includes(id));
+    return ids.concat(missing);
+  }
+
+  let bdEqTimer;
+  function equalizeBdCards() {
+    const cards = Array.from(document.querySelectorAll('#slide-bd-outlook .bd-outlook-card'));
+    if (!cards.length) return;
+    cards.forEach(c => c.style.height = 'auto');
+    const rows = {};
+    cards.forEach(c => {
+      const top = c.offsetTop;
+      rows[top] = rows[top] || [];
+      rows[top].push(c);
+    });
+    Object.values(rows).forEach(list => {
+      const maxH = Math.max(...list.map(c => c.offsetHeight));
+      list.forEach(c => c.style.height = `${maxH}px`);
+    });
+  }
+
+  function scheduleBdEqualize() {
+    clearTimeout(bdEqTimer);
+    bdEqTimer = setTimeout(equalizeBdCards, 120);
+  }
+
+  window.addEventListener('resize', scheduleBdEqualize);
+
+  const kosmoTips = [
+    'Biochar is carbon-negative and its porous, negatively charged structure soaks up minerals and nutrients, then releases them slowly over decades.',
+    'Compost teas boost soil biome diversity, turning root zones into microbial parties that unlock nutrients for plants.',
+    'Biodynamic preparations provide rhythmic, resonance-based inputs that align soil and plant vitality with cosmic cycles.',
+    'Blend compost teas, biodynamic preps, and biochar for a Kosmophytotrophia trio: long-lived fertility, microbial housing, and rhythmic resonance in the root zone.'
+  ];
+  let kosmoTipIndex = 0;
+  function updateKosmoTip() {
+    const el = document.getElementById('kosmogrow-tip');
+    if (!el || !kosmoTips.length) return;
+    el.textContent = kosmoTips[kosmoTipIndex];
+    kosmoTipIndex = (kosmoTipIndex + 1) % kosmoTips.length;
+  }
+
+  function buildSlides(selectedIds) {
+    slides = selectedIds.map(id => document.getElementById(id)).filter(Boolean);
+    if (!slides.length) slides = allSlideMeta.map(s => document.getElementById(s.id)).filter(Boolean);
+    slideIndex = 0;
+    // ensure only first is active
+    document.querySelectorAll('.view-slide').forEach((el, idx) => {
+      el.classList.remove('active');
+    });
+    if (slides.length) slides[0].classList.add('active');
+    scheduleBdEqualize();
+    if (slides.length && slides[0].id === 'slide-kosmogrow') updateKosmoTip();
   }
 
   function savePrefs() {
@@ -335,8 +476,6 @@
       units: document.getElementById('unitSelect').value,
       kiosk: document.getElementById('toggleKiosk').checked,
       scrollSeconds: parseInt(document.getElementById('scrollSpeed').value, 10) || 12,
-      voice: document.getElementById('voiceSelect').value || '',
-      voiceRate: parseFloat(document.getElementById('voiceRate').value) || 0.95,
     };
     localStorage.setItem('ks_prefs', JSON.stringify(prefs));
     // apply
@@ -344,7 +483,7 @@
     const ttsOn = prefs.tts === true || (prefs.tts === undefined && ttsDefault);
     const baseMs = prefs.scrollSeconds * 1000;
     scrollIntervalMs = ttsOn ? Math.max(baseMs, 20000) : baseMs;
-    cycleSlides();
+    startSlides();
     if (prefs.kiosk) enterFullscreen(); else exitFullscreen();
     // For TTS, reload with query param to set cookie
     const url = new URL(window.location.href);
@@ -352,50 +491,25 @@
     window.location.href = url.toString();
   }
 
-  function populateVoices(prefs) {
-    const select = document.getElementById('voiceSelect');
-    if (!select) return;
-    if (!('speechSynthesis' in window)) {
-      select.innerHTML = '<option value="">Not supported</option>';
-      select.disabled = true;
-      return;
+  function initAudioPlaylist() {
+    const audio = document.getElementById('ks-audio');
+    if (!audio || !audio.dataset.playlist) return;
+    if (audio.dataset.ready === '1') return;
+    try {
+      const list = JSON.parse(audio.dataset.playlist);
+      if (!Array.isArray(list) || list.length === 0) return;
+      const pick = list[Math.floor(Math.random() * list.length)];
+      audio.src = pick;
+      audio.dataset.ready = '1';
+    } catch (e) {
+      console.warn('Bad playlist', e);
     }
-
-    let voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) {
-      select.innerHTML = '<option value="">Loading voices…</option>';
-      return;
-    }
-
-    const enUs = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en-us'));
-    const enFallback = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-    voices = enUs.length ? enUs : (enFallback.length ? enFallback : voices);
-
-    const desired = (prefs && prefs.voice) || select.dataset.pendingVoice || defaultVoiceName || '';
-    select.innerHTML = '';
-    const defOpt = document.createElement('option');
-    defOpt.value = '';
-    defOpt.textContent = enUs.length ? 'Default (en-US)' : 'Browser default';
-    select.appendChild(defOpt);
-
-    voices.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v.name;
-      opt.textContent = `${v.name} (${v.lang})`;
-      if (desired && desired === v.name) opt.selected = true;
-      select.appendChild(opt);
-    });
-
-    if (desired && !prefs?.voice && select.value === desired) {
-      // Preselect default voice without forcing a save.
-      select.value = desired;
-    }
-    if (desired) delete select.dataset.pendingVoice;
   }
 
   function toggleAudio(mute) {
     const audio = document.getElementById('ks-audio');
     if (!audio) return;
+    initAudioPlaylist();
     audio.muted = mute;
     if (!mute) audio.play().catch(() => {});
     document.getElementById('muteToggle')?.classList.toggle('btn-outline-light', mute);
@@ -457,6 +571,28 @@
     });
   }
 
+  function kpLevel(kpVal) {
+    const v = Number(kpVal);
+    if (!Number.isFinite(v)) return 'Unknown';
+    if (v < 2) return 'Low';
+    if (v < 4) return 'Normal';
+    if (v < 5) return 'Moderate';
+    if (v < 7) return 'High';
+    return 'Extreme';
+  }
+
+  function renderKp(kpVal) {
+    renderKpBar(kpVal);
+    const label = document.getElementById('kp-now');
+    if (!label) return;
+    const levelText = kpLevel(kpVal);
+    if (!kpVal && kpVal !== 0) {
+      label.textContent = 'n/a';
+      return;
+    }
+    label.textContent = `${levelText}`;
+  }
+
   async function refreshStatus() {
     try {
       const res = await fetch('/api/status');
@@ -479,9 +615,8 @@
         applyUnitToTemps((JSON.parse(localStorage.getItem('ks_prefs') || '{}').units || 'metric'));
       }
       if (data.space) {
-        document.getElementById('kp-now').textContent = `Kp ${data.space.kp_now ?? 'n/a'}`;
+        renderKp(data.space.kp_now);
         document.getElementById('space-summary').textContent = data.space.summary || '';
-        renderKpBar(data.space.kp_now);
       }
       if (data.suggestion) {
         document.getElementById('today-suggestion').textContent = data.suggestion;
@@ -491,7 +626,6 @@
         list.innerHTML = '';
         if (data.alerts.length === 0) {
           list.innerHTML = '<li class="text-secondary">No active alerts</li>';
-          document.getElementById('ks-ticker').textContent = data.suggestion || 'All clear';
         } else {
           data.alerts.forEach(a => {
             const li = document.createElement('li');
@@ -499,7 +633,6 @@
             li.textContent = `• ${a.text}`;
             list.appendChild(li);
           });
-          document.getElementById('ks-ticker').textContent = data.alerts[0].text;
         }
       }
     } catch (err) {
@@ -508,74 +641,62 @@
   }
 
   const initialPrefs = loadPrefs();
-  populateVoices(initialPrefs);
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.addEventListener('voiceschanged', () => populateVoices(JSON.parse(localStorage.getItem('ks_prefs') || '{}')));
-  }
-  speakSlide(0);
-  cycleSlides();
+  initAudioPlaylist();
+  const initialKp = document.getElementById('kp-now')?.dataset.kp;
+  if (initialKp !== undefined) renderKp(initialKp);
+  setupScreenSelector();
+  scheduleBdEqualize();
   setInterval(refreshStatus, 5 * 60 * 1000);
 
   function speakSlide(idx) {
-    const prefs = JSON.parse(localStorage.getItem('ks_prefs') || '{}');
-    const ttsOn = prefs.tts === true || (prefs.tts === undefined && ttsDefault);
-    if (!ttsOn || !('speechSynthesis' in window)) return;
+    return;
+  }
 
-    window.speechSynthesis.cancel();
+  function setupScreenSelector() {
+    const list = document.getElementById('screenList');
+    const overlay = document.getElementById('screenSelector');
+    const startBtn = document.getElementById('startStream');
+    const selectAllBtn = document.getElementById('selectAllScreens');
+    const openBtn = document.getElementById('openScreens');
+    if (!list || !overlay || !startBtn || !selectAllBtn) return;
 
-    let text = '';
-    if (idx === 0) {
-      const bd = document.getElementById('bd-type')?.textContent || '';
-      const phase = document.querySelector('#slide-current .text-secondary')?.textContent || '';
-      const note = (document.getElementById('bd-notes')?.textContent || '').trim();
-      const rawMin = parseFloat(document.getElementById('temp-range')?.dataset.rawMin || '');
-      const rawMax = parseFloat(document.getElementById('temp-range')?.dataset.rawMax || '');
-      const unitSel = document.getElementById('unitSelect')?.value || 'metric';
-      const toUnit = (v) => {
-        if (!Number.isFinite(v)) return null;
-        return unitSel === 'imperial' ? (v * 9/5 + 32) : v;
+    const selected = new Set(loadScreens());
+    list.innerHTML = '';
+    allSlideMeta.forEach(slide => {
+      const id = `chk-${slide.id}`;
+      const wrap = document.createElement('div');
+      wrap.className = 'form-check mb-1';
+      wrap.innerHTML = `<input class="form-check-input" type="checkbox" id="${id}" data-target="${slide.id}" ${selected.has(slide.id) ? 'checked' : ''}>`+
+        `<label class="form-check-label" for="${id}">${slide.label}</label>`;
+      list.appendChild(wrap);
+    });
+
+    selectAllBtn.onclick = () => {
+      list.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+    };
+
+    startBtn.onclick = () => {
+      const chosen = Array.from(list.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked).map(cb => cb.dataset.target);
+      localStorage.setItem('ks_screens', JSON.stringify(chosen));
+      buildSlides(chosen);
+      overlay.style.display = 'none';
+      startSlides();
+    };
+
+    if (openBtn) {
+      openBtn.onclick = () => {
+        overlay.style.display = 'flex';
       };
-      const low = toUnit(rawMin);
-      const high = toUnit(rawMax);
-      const unitWord = unitSel === 'imperial' ? 'fahrenheit' : 'celsius';
-      const popText = document.getElementById('wx-pop')?.textContent || '';
-      const popMatch = popText.match(/POP\s+(\d+)/i);
-      const popPct = popMatch ? popMatch[1] : '';
-      const kpText = document.getElementById('kp-now')?.textContent || '';
-      const kpMatch = kpText.match(/([\d\.]+)/);
-      const kpVal = kpMatch ? kpMatch[1] : '';
-      const suggestion = document.getElementById('today-suggestion')?.textContent || '';
-      const tempPart = (low != null && high != null) ? `Low ${Math.round(low)} and high ${Math.round(high)} degrees ${unitWord}.` : '';
-      const popPart = popPct ? `Chance of precipitation ${popPct} percent.` : '';
-      const kpPart = kpVal ? `K P index ${kpVal}.` : '';
-      const notePart = note ? `Note: ${note}.` : '';
-      text = `Current Conditions. ${bd}. ${phase}. ${tempPart} ${popPart} ${kpPart} ${notePart} ${suggestion}`;
-    } else if (idx === 1) {
-      text = 'Planting Outlook.';
-    } else if (idx === 2) {
-      const cards = Array.from(document.querySelectorAll('#slide-outlook-7 [data-bdtype]'));
-      const restCard = cards.find(c => {
-        const t = (c.getAttribute('data-bdtype') || '').toLowerCase();
-        return t.includes('rest') || t.includes('barren');
-      });
-      const restLabel = restCard ? restCard.getAttribute('data-label') : '';
-      const restPart = restLabel ? `Rest day approaching on ${restLabel}.` : '';
-      text = `Extended Planting Outlook. ${restPart}`;
-    } else if (idx === 3) {
-      text = 'Enhanced Almanac.';
     }
 
-    if (!text.trim()) return;
-    const u = new SpeechSynthesisUtterance(text);
-    const voiceName = prefs.voice || document.getElementById('voiceSelect')?.value || defaultVoiceName || '';
-    if (voiceName && 'speechSynthesis' in window) {
-      const voices = window.speechSynthesis.getVoices();
-      const match = voices.find(v => v.name === voiceName);
-      if (match) u.voice = match;
+    // Auto-start if already chosen
+    if (selected.size) {
+      overlay.style.display = 'none';
+      buildSlides(Array.from(selected));
+      startSlides();
+    } else {
+      overlay.style.display = 'flex';
     }
-    const rate = Number(prefs.voiceRate);
-    u.rate = Number.isFinite(rate) ? rate : 0.95;
-    window.speechSynthesis.speak(u);
   }
 </script>
 </body>

@@ -1,39 +1,75 @@
 import os
 import datetime
+import shutil
+import subprocess
+import tempfile
+from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from flask import Flask, render_template, jsonify, request, make_response
 from db import get_db, init_db
+DEFAULT_LAT = 40.0942
+DEFAULT_LON = -75.9097
+PIPER_MODEL_PATH = os.getenv("PIPER_MODEL_PATH")  # Expected path to en_US-ryan-high.onnx
+PIPER_BINARY = os.getenv("PIPER_BINARY", "piper")
+PIPER_PLAY_CMD = os.getenv("PIPER_PLAY_CMD", "aplay")
+PIPER_ENABLED = os.getenv("PIPER_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
 
-
-# ---- TTS setup ----
-TTS_ENABLED_DEFAULT = os.getenv("TTS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
-TTS_VOICE = os.getenv("TTS_VOICE", "male").lower()
-
-tts_engine = None
+# Optional skyfield import for rise/set calculations.
+HAS_SKYFIELD = False
 try:
-    import pyttsx3  # type: ignore
+    from skyfield import almanac
+    from skyfield.api import load, wgs84  # type: ignore
 
-    tts_engine = pyttsx3.init()
-    if TTS_VOICE == "male":
-        # Try to pick a male-ish voice; fallback to default.
-        for voice in tts_engine.getProperty("voices"):
-            if "male" in voice.name.lower() or "en" in voice.name.lower():
-                tts_engine.setProperty("voice", voice.id)
-                break
+    HAS_SKYFIELD = True
 except Exception:
-    tts_engine = None  # Degrade gracefully if TTS is unavailable.
+    HAS_SKYFIELD = False
+
+
+
+# ---- TTS setup (Piper only) ----
+TTS_ENABLED_DEFAULT = os.getenv("TTS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+
+
+def _piper_available():
+    if not (PIPER_ENABLED and PIPER_MODEL_PATH):
+        return False
+    if not shutil.which(PIPER_BINARY):
+        return False
+    if not shutil.which(PIPER_PLAY_CMD):
+        return False
+    return True
+
+
+def _speak_with_piper(text):
+    if not text or not _piper_available():
+        return False
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            tmp_path = tmp.name
+        subprocess.run(
+            [PIPER_BINARY, "--model", PIPER_MODEL_PATH, "--output_file", tmp_path],
+            input=text.encode("utf-8"),
+            check=True,
+        )
+        subprocess.run([PIPER_PLAY_CMD, tmp_path], check=True)
+        return True
+    except Exception:
+        return False
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
 
 def announce(text):
     """Speak text if TTS is enabled and engine is available."""
-    if not tts_engine or not text:
+    if not text:
         return
-    try:
-        tts_engine.say(text)
-        tts_engine.runAndWait()
-    except Exception:
-        # Silence any runtime TTS failures to avoid breaking the app path.
-        pass
+    _speak_with_piper(text)
 
 
 def build_suggestion(bd_entry, wx_entry, space_entry):
@@ -87,6 +123,26 @@ def collect_alerts(bd_entry, wx_entry, space_entry):
     return alerts
 
 
+def describe_kp(kp_val):
+    if kp_val is None:
+        return None
+    try:
+        v = float(kp_val)
+    except Exception:
+        return None
+    if v < 2:
+        label = "Quiet"
+    elif v < 4:
+        label = "Unsettled"
+    elif v < 5:
+        label = "Active"
+    elif v < 7:
+        label = "Storm"
+    else:
+        label = "Severe Storm"
+    return f"{label} (Kp {v:g})"
+
+
 def _clean_note(value):
     """Normalize BD notes: treat lone '-' or empty as None."""
     if value is None:
@@ -95,6 +151,79 @@ def _clean_note(value):
     if text == "-" or text == "":
         return None
     return text
+
+
+def _fmt_range(start_dt, end_dt, today_dt):
+    """Return a short date range string, labeling today/tomorrow when relevant."""
+    def label(d):
+        if d == today_dt:
+            return "Today"
+        if d == today_dt + datetime.timedelta(days=1):
+            return "Tomorrow"
+        return d.strftime("%b %d")
+
+    if start_dt == end_dt:
+        return label(start_dt)
+    return f"{label(start_dt)} – {label(end_dt)}"
+
+
+def build_bd_ranges(rows, today_str):
+    """Group contiguous BD days by type, returning up to 33-day planning ranges."""
+    if not rows:
+        return []
+    today_dt = datetime.date.fromisoformat(today_str)
+    items = []
+    current = None
+    for r in rows:
+        bd_type = (r.get("type") or "").strip()
+        if not bd_type:
+            continue
+        date_dt = datetime.date.fromisoformat(r["date"])
+        phase = r.get("phase", "")
+        activities = r.get("activities", "")
+        if current and bd_type.lower() == current["type"].lower() and (date_dt - current["end"]).days == 1:
+            current["end"] = date_dt
+        else:
+            if current:
+                items.append(current)
+            current = {"type": bd_type, "phase": phase, "start": date_dt, "end": date_dt, "activities": activities}
+    if current:
+        items.append(current)
+
+    # Format for template
+    formatted = []
+    for it in items:
+        formatted.append({
+            "type": it["type"],
+            "phase": it.get("phase", ""),
+            "display_range": _fmt_range(it["start"], it["end"], today_dt),
+            "activities": it.get("activities", ""),
+        })
+    return formatted
+
+
+def build_phase_list(rows, limit=12):
+    """Return upcoming distinct moon phases (new/first/full/last) with first date."""
+    wanted = {"new": "New Moon", "first quarter": "First Quarter", "full": "Full Moon", "last quarter": "Last Quarter", "third quarter": "Last Quarter"}
+    phases = []
+    seen_labels = set()
+    for r in rows:
+        phase_raw = (r.get("phase") or "").strip()
+        phase_l = phase_raw.lower()
+        label = None
+        for key, name in wanted.items():
+            if key in phase_l:
+                label = name
+                break
+        if not label:
+            continue
+        if label in seen_labels:
+            continue
+        phases.append({"date": r["date"], "phase": label})
+        seen_labels.add(label)
+        if len(phases) >= limit:
+            break
+    return phases
 
 
 def day_label(date_str, today_str):
@@ -116,6 +245,96 @@ def day_label(date_str, today_str):
     weekday = target.strftime("%A")
     return f"{weekday} {target.day}{suffix(target.day)}" if target.month == today.month else f"{weekday}, {pretty_date}"
 
+
+def _parse_location(env_name, fallback):
+    val = os.getenv(env_name)
+    try:
+        return float(val) if val is not None else fallback
+    except Exception:
+        return fallback
+
+
+def get_location():
+    """Return (lat, lon) using env overrides when present."""
+    lat = _parse_location("WX_LAT", _parse_location("LAT", DEFAULT_LAT))
+    lon = _parse_location("WX_LON", _parse_location("LON", DEFAULT_LON))
+    return lat, lon
+
+
+def get_tzinfo():
+    tz_name = os.getenv("ASTRO_TZ")
+    if tz_name:
+        try:
+            return ZoneInfo(tz_name)
+        except Exception:
+            pass
+    try:
+        return datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
+    except Exception:
+        return datetime.timezone.utc
+
+
+def _format_event(ts_obj, tzinfo):
+    if ts_obj is None:
+        return None
+    local = ts_obj.utc_datetime().replace(tzinfo=datetime.timezone.utc).astimezone(tzinfo)
+    return local.strftime("%-I:%M %p")
+
+
+@lru_cache(maxsize=1)
+def _load_ephemeris():
+    if not HAS_SKYFIELD:
+        return None, None
+    try:
+        ts = load.timescale()
+        eph = load("de421.bsp")
+        return ts, eph
+    except Exception:
+        return None, None
+
+
+def compute_astro_events(date_str, lat, lon, tzinfo):
+    """Return sun/moon rise/set times for a given date and location."""
+    if not HAS_SKYFIELD:
+        return None
+    ts, eph = _load_ephemeris()
+    if not ts or not eph:
+        return None
+
+    try:
+        date = datetime.date.fromisoformat(date_str)
+    except ValueError:
+        return None
+
+    location = wgs84.latlon(latitude_degrees=lat, longitude_degrees=lon)
+    start = ts.utc(date.year, date.month, date.day, 0, 0)
+    end = ts.utc(date.year, date.month, date.day, 23, 59)
+    events = {"sunrise": None, "sunset": None, "moonrise": None, "moonset": None}
+
+    try:
+        sun_times, sun_events = almanac.find_discrete(start, end, almanac.sunrise_sunset(eph, location))
+        for t, flag in zip(sun_times, sun_events):
+            if flag:
+                events["sunrise"] = _format_event(t, tzinfo)
+            else:
+                events["sunset"] = _format_event(t, tzinfo)
+    except Exception:
+        pass
+
+    try:
+        moon_times, moon_events = almanac.find_discrete(start, end, almanac.risings_and_settings(eph, eph["Moon"], location))
+        for t, flag in zip(moon_times, moon_events):
+            if flag:
+                events["moonrise"] = _format_event(t, tzinfo)
+            else:
+                events["moonset"] = _format_event(t, tzinfo)
+    except Exception:
+        pass
+
+    if all(v is None for v in events.values()):
+        return None
+    return events
+
 app = Flask(__name__)
 
 @app.route("/")
@@ -123,6 +342,9 @@ def index():
     # Allow optional ?date=YYYY-MM-DD override for testing/future previews.
     override_date = request.args.get("date")
     today = override_date or datetime.date.today().isoformat()
+    lat, lon = get_location()
+    tzinfo = get_tzinfo()
+    tz_label = datetime.datetime.now(tzinfo).tzname()
     # TTS preference can be overridden via cookie or query param (?tts=on/off)
     tts_param = request.args.get("tts")
     cookie_tts = request.cookies.get("ks_tts")
@@ -140,6 +362,11 @@ def index():
     ).fetchone()
     forecast_rows = conn.execute(
         "SELECT * FROM weather_daily WHERE date>=? ORDER BY date LIMIT 7", (today,)
+    ).fetchall()
+
+    # Wider BD window for planning (22 days)
+    bd_window_rows = conn.execute(
+        "SELECT * FROM bd_calendar WHERE date>=? ORDER BY date LIMIT 22", (today,)
     ).fetchall()
 
     bd = dict(bd_row) if bd_row else None
@@ -190,12 +417,32 @@ def index():
             f"Weather: {wx.get('description', 'n/a')}, high {wx.get('temp_max', 'n/a')} C, rain chance {pop_pct} percent."
         )
     if space and space.get("kp_now") is not None:
-        summary_parts.append(f"Space weather Kp {space['kp_now']}.")
+        kp_desc = describe_kp(space.get("kp_now")) or f"Kp {space['kp_now']}"
+        summary_parts.append(f"Geomagnetic conditions: {kp_desc}.")
     if today_suggestion:
         summary_parts.append(today_suggestion)
     if tts_enabled:
         announce(" ".join(summary_parts))
     conn.close()
+    calendar_days = [dict(r) for r in bd_window_rows]
+    bd_ranges = build_bd_ranges(calendar_days, today)
+    moon_phases = build_phase_list(calendar_days)
+
+    astro_events = []
+    astro_targets = [row["date"] for row in forecast_rows[:3]] if forecast_rows else [today]
+    seen_dates = set()
+    for date_str in astro_targets:
+        if date_str in seen_dates:
+            continue
+        seen_dates.add(date_str)
+        events = compute_astro_events(date_str, lat, lon, tzinfo)
+        if events:
+            astro_events.append({
+                "date": date_str,
+                "label": day_label(date_str, today),
+                **events,
+            })
+
     resp = make_response(render_template(
         "index.html",
         bd=bd,
@@ -208,10 +455,29 @@ def index():
         current_date=today,
         tts_enabled=tts_enabled,
         day_label=day_label,
+        bd_ranges=bd_ranges,
+        calendar_days=calendar_days,
+        moon_phases=moon_phases,
+        astro_events=astro_events,
+        astro_tz=tz_label,
     ))
     if tts_param in {"on", "off"}:
         resp.set_cookie("ks_tts", tts_param, max_age=30*24*3600)
     return resp
+
+
+@app.route("/bd-test")
+def bd_test():
+    samples = [
+        {"type": "Fruit", "phase": "Waxing Gibbous", "activities": "Fruiting tasks"},
+        {"type": "Root", "phase": "Waning Gibbous", "activities": "Root crops"},
+        {"type": "Leaf", "phase": "Waxing Crescent", "activities": "Leafy greens"},
+        {"type": "Flower", "phase": "First Quarter", "activities": "Flowers & blooms"},
+        {"type": "Rest", "phase": "Last Quarter", "activities": "Rest day"},
+        {"type": "Barren", "phase": "New Moon", "activities": "Rest/avoid planting"},
+        {"type": "Other", "phase": "Full Moon", "activities": "Fallback"},
+    ]
+    return render_template("bd_test.html", samples=samples)
 
 @app.route("/api/status")
 def status():

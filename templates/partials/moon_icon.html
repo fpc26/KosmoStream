@@ -1,15 +1,24 @@
 {% set phase_text = phase_text if phase_text is defined else (bd['phase'] if bd is defined and bd else '') %}
 {% set phase = phase_text|lower %}
+{% set stroke = '#c7d3e3' %}
 {% if 'new' in phase %}
-<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="#c7d3e3" stroke-width="6"/></svg>
+<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="{{ stroke }}" stroke-width="6"/></svg>
 {% elif 'full' in phase %}
-<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="#c7d3e3" stroke="#c7d3e3" stroke-width="6"/></svg>
-{% elif 'first quarter' in phase or 'last quarter' in phase or 'third quarter' in phase %}
-<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="#c7d3e3" stroke-width="6"/><rect x="50" y="10" width="20" height="80" fill="#c7d3e3"/></svg>
+<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="{{ stroke }}" stroke="{{ stroke }}" stroke-width="6"/></svg>
+{% elif 'first quarter' in phase %}
+<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="{{ stroke }}" stroke-width="6"/><path d="M50 10 A40 40 0 0 1 50 90 L50 10 Z" fill="{{ stroke }}"/></svg>
+{% elif 'last quarter' in phase or 'third quarter' in phase %}
+<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="{{ stroke }}" stroke-width="6"/><path d="M50 10 A40 40 0 0 0 50 90 L50 10 Z" fill="{{ stroke }}"/></svg>
 {% elif 'waxing' in phase %}
-<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="#c7d3e3" stroke-width="6"/><path d="M50 10 A40 40 0 0 1 50 90" fill="#c7d3e3"/></svg>
+<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+	<circle cx="50" cy="50" r="40" fill="none" stroke="{{ stroke }}" stroke-width="6"/>
+	<path d="M50 10 A40 40 0 0 1 50 90 A24 40 0 0 0 50 10 Z" fill="{{ stroke }}"/>
+</svg>
 {% elif 'waning' in phase %}
-<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="#c7d3e3" stroke-width="6"/><path d="M50 10 A40 40 0 0 0 50 90" fill="#c7d3e3"/></svg>
+<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+	<circle cx="50" cy="50" r="40" fill="none" stroke="{{ stroke }}" stroke-width="6"/>
+	<path d="M50 10 A40 40 0 0 0 50 90 A24 40 0 0 1 50 10 Z" fill="{{ stroke }}"/>
+</svg>
 {% else %}
-<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="#c7d3e3" stroke-width="6"/></svg>
+<svg class="moon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="none" stroke="{{ stroke }}" stroke-width="6"/></svg>
 {% endif %}
