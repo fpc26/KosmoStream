@@ -3,6 +3,7 @@ import datetime
 import shutil
 import subprocess
 import tempfile
+import threading
 from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -337,8 +338,80 @@ def compute_astro_events(date_str, lat, lon, tzinfo):
 
 app = Flask(__name__)
 
+REFRESH_LOCK = threading.Lock()
+LAST_REFRESH_ATTEMPT_DATE = None
+API_CORS_ORIGIN = os.getenv("API_CORS_ORIGIN", "*")
+
+
+def _get_config_value(conn, key):
+    row = conn.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def _set_config_value(conn, key, value):
+    conn.execute(
+        "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+        (key, value),
+    )
+
+
+def _refresh_data_sources():
+    import load_bd_calendar
+    import fetch_weather
+    import fetch_space_weather
+
+    load_bd_calendar.main()
+    fetch_weather.main()
+    fetch_space_weather.main()
+
+
+def ensure_daily_refresh():
+    global LAST_REFRESH_ATTEMPT_DATE
+    today = datetime.date.today().isoformat()
+    with REFRESH_LOCK:
+        if LAST_REFRESH_ATTEMPT_DATE == today:
+            return
+        LAST_REFRESH_ATTEMPT_DATE = today
+
+        conn = get_db()
+        try:
+            last_refresh = _get_config_value(conn, "last_data_refresh_date")
+            has_bd_today = conn.execute(
+                "SELECT 1 FROM bd_calendar WHERE date=? LIMIT 1",
+                (today,),
+            ).fetchone() is not None
+            has_wx_today = conn.execute(
+                "SELECT 1 FROM weather_daily WHERE date=? LIMIT 1",
+                (today,),
+            ).fetchone() is not None
+            latest_space = conn.execute(
+                "SELECT fetched_at FROM space_weather ORDER BY fetched_at DESC LIMIT 1"
+            ).fetchone()
+            has_space_today = bool(
+                latest_space
+                and latest_space["fetched_at"]
+                and str(latest_space["fetched_at"]).startswith(today)
+            )
+        finally:
+            conn.close()
+
+        if last_refresh == today and has_bd_today and has_wx_today and has_space_today:
+            return
+
+        try:
+            _refresh_data_sources()
+            conn = get_db()
+            try:
+                _set_config_value(conn, "last_data_refresh_date", today)
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception:
+            app.logger.exception("Daily refresh failed")
+
 @app.route("/")
 def index():
+    ensure_daily_refresh()
     # Allow optional ?date=YYYY-MM-DD override for testing/future previews.
     override_date = request.args.get("date")
     today = override_date or datetime.date.today().isoformat()
@@ -481,6 +554,7 @@ def bd_test():
 
 @app.route("/api/status")
 def status():
+    ensure_daily_refresh()
     today = datetime.date.today().isoformat()
     conn = get_db()
     bd_row = conn.execute("SELECT * FROM bd_calendar WHERE date=?", (today,)).fetchone()
@@ -497,13 +571,15 @@ def status():
     today_suggestion = build_suggestion(bd, wx, space)
     alerts = collect_alerts(bd, wx, space)
     conn.close()
-    return jsonify({
+    resp = jsonify({
         "bd": bd,
         "weather": wx,
         "space": space,
         "suggestion": today_suggestion,
         "alerts": alerts,
     })
+    resp.headers["Access-Control-Allow-Origin"] = API_CORS_ORIGIN
+    return resp
 
 if __name__ == "__main__":
     init_db()
