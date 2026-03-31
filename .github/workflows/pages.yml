@@ -36,6 +36,7 @@ jobs:
         run: npm run build
         working-directory: web
         env:
+          # Repository variable (Settings -> Secrets and variables -> Actions -> Variables)
           VITE_API_URL: ${{ vars.KOSMOSTREAM_API_URL }}
 
       - name: Setup Pages

@@ -364,7 +364,7 @@ def _refresh_data_sources():
     fetch_space_weather.main()
 
 
-def ensure_daily_refresh():
+def check_and_refresh_daily_data():
     today = datetime.date.today().isoformat()
     with REFRESH_LOCK:
         conn = get_db()
@@ -401,11 +401,13 @@ def ensure_daily_refresh():
             finally:
                 conn.close()
         except Exception:
-            app.logger.exception("Daily refresh failed")
+            app.logger.exception(
+                "Daily refresh failed while updating BD/weather/space sources; serving stale data where available"
+            )
 
 @app.route("/")
 def index():
-    ensure_daily_refresh()
+    check_and_refresh_daily_data()
     # Allow optional ?date=YYYY-MM-DD override for testing/future previews.
     override_date = request.args.get("date")
     today = override_date or datetime.date.today().isoformat()
@@ -548,7 +550,7 @@ def bd_test():
 
 @app.route("/api/status")
 def status():
-    ensure_daily_refresh()
+    check_and_refresh_daily_data()
     today = datetime.date.today().isoformat()
     conn = get_db()
     bd_row = conn.execute("SELECT * FROM bd_calendar WHERE date=?", (today,)).fetchone()

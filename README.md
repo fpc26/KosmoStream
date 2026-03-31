@@ -48,3 +48,6 @@ This repository includes `.github/workflows/pages.yml` to deploy the Svelte app 
 3. Push to `main` (or run the workflow manually) to publish the site.
 
 The Svelte site is static and GitHub Pages-compatible; it reads live status data from the configured API URL.
+
+`KOSMOSTREAM_API_URL` should be created as a **Repository variable** under:
+**Settings → Secrets and variables → Actions → Variables**.

@@ -1,9 +1,13 @@
 <script>
   import { onMount } from 'svelte';
 
-  const DEFAULT_API_URL = 'http://localhost:5000/api/status';
   const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
-  const apiUrl = configuredApiUrl || DEFAULT_API_URL;
+  const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+  const localFallbackUrl =
+    typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)
+      ? 'http://localhost:5000/api/status'
+      : '';
+  const apiUrl = configuredApiUrl || localFallbackUrl;
 
   let data = null;
   let loading = true;
@@ -30,6 +34,11 @@
   }
 
   async function refreshStatus() {
+    if (!apiUrl) {
+      error = 'API endpoint is not configured. Set VITE_API_URL for this deployment.';
+      loading = false;
+      return;
+    }
     try {
       const res = await fetch(apiUrl, { cache: 'no-store' });
       if (!res.ok) {
@@ -39,7 +48,7 @@
       error = '';
       lastUpdated = new Date().toISOString();
     } catch (err) {
-      error = `Unable to load status from ${apiUrl} (${err?.message || 'unknown error'})`;
+      error = `Unable to load status (${err?.message || 'unknown error'})`;
     } finally {
       loading = false;
     }
@@ -47,7 +56,7 @@
 
   onMount(() => {
     refreshStatus();
-    const timer = setInterval(refreshStatus, 5 * 60 * 1000);
+    const timer = setInterval(refreshStatus, REFRESH_INTERVAL_MS);
     return () => clearInterval(timer);
   });
 </script>
@@ -55,8 +64,12 @@
 <main>
   <header>
     <h1>KosmoStream</h1>
-    <p>Cosmic-aligned planting dashboard (Svelte)</p>
-    <small>API: {apiUrl}</small>
+    <p>Cosmic-aligned planting dashboard</p>
+    {#if apiUrl}
+      <small>API configured</small>
+    {:else}
+      <small>API not configured</small>
+    {/if}
   </header>
 
   {#if loading}
