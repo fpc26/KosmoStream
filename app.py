@@ -339,8 +339,7 @@ def compute_astro_events(date_str, lat, lon, tzinfo):
 app = Flask(__name__)
 
 REFRESH_LOCK = threading.Lock()
-LAST_REFRESH_ATTEMPT_DATE = None
-API_CORS_ORIGIN = os.getenv("API_CORS_ORIGIN", "*")
+API_CORS_ORIGIN = os.getenv("API_CORS_ORIGIN", "")
 
 
 def _get_config_value(conn, key):
@@ -366,13 +365,8 @@ def _refresh_data_sources():
 
 
 def ensure_daily_refresh():
-    global LAST_REFRESH_ATTEMPT_DATE
     today = datetime.date.today().isoformat()
     with REFRESH_LOCK:
-        if LAST_REFRESH_ATTEMPT_DATE == today:
-            return
-        LAST_REFRESH_ATTEMPT_DATE = today
-
         conn = get_db()
         try:
             last_refresh = _get_config_value(conn, "last_data_refresh_date")
@@ -578,9 +572,11 @@ def status():
         "suggestion": today_suggestion,
         "alerts": alerts,
     })
-    resp.headers["Access-Control-Allow-Origin"] = API_CORS_ORIGIN
+    if API_CORS_ORIGIN:
+        resp.headers["Access-Control-Allow-Origin"] = API_CORS_ORIGIN
     return resp
 
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    debug_enabled = os.getenv("FLASK_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
+    app.run(host="0.0.0.0", port=5000, debug=debug_enabled)

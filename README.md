@@ -2,11 +2,11 @@
 
 KosmoStream provides:
 - A Flask service with biodynamic, weather, and space-weather cards.
-- A Svelte web frontend in `/home/runner/work/KosmoStream/KosmoStream/web` for browser-first hosting.
+- A Svelte web frontend in `./web` for browser-first hosting.
 
 ## Local backend run
 
-From `/home/runner/work/KosmoStream/KosmoStream`:
+From the project root:
 
 ```bash
 export OWM_API_KEY=your_openweather_key
@@ -18,9 +18,15 @@ python app.py
 
 The server now performs an automatic once-per-day refresh check so long-running processes reload weather/space/calendar data daily.
 
+If you serve the frontend from a different origin (like GitHub Pages), set:
+
+```bash
+export API_CORS_ORIGIN=https://<your-user>.github.io
+```
+
 ## Svelte web frontend (local)
 
-From `/home/runner/work/KosmoStream/KosmoStream/web`:
+From `./web`:
 
 ```bash
 npm install
