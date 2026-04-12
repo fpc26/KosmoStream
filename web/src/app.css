@@ -81,4 +81,5 @@ button {
   color: #fff;
   padding: 0.4rem 0.9rem;
   cursor: pointer;
+  min-height: 44px;
 }

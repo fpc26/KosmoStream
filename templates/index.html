@@ -2,15 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>KosmoStream</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
+    html { height: 100%; }
     body {
       background: radial-gradient(circle at 20% 20%, #16213e 0%, #0a0f1f 35%, #050910 100%);
       color: #e9edf5;
-      min-height: 100vh;
+      height: 100dvh;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
     }
+    #app-root { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; padding-bottom: 0 !important; }
+    #slides-wrapper { flex: 1; position: relative; overflow: hidden; min-height: 0; }
     .glass { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.35); backdrop-filter: blur(6px); border-radius: 18px; }
     .hero-title { letter-spacing: 0.04em; }
     .ticker { background: linear-gradient(90deg, #d7263d, #f19a3e); color: #fff; border-radius: 12px; padding: 10px 14px; font-weight: 600; box-shadow: 0 6px 16px rgba(0,0,0,0.35); }
@@ -30,8 +37,20 @@
       .kp-cell.on-8 { background:#c0392b; }
       .kp-cell.on-9 { background:#8e0e00; }
     .muted { color: #a8b6c8; }
-    .view-slide { min-height: 80vh; padding: 1rem; display: none; }
+    .view-slide { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 1rem 3.5rem; display: none; box-sizing: border-box; }
     .view-slide.active { display: block; }
+    .slide-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 100; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); color: #e9edf5; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.6rem; line-height: 1; opacity: 0.2; transition: opacity 0.25s; padding: 0; }
+    .slide-nav:hover, .slide-nav:focus { opacity: 1; outline: none; }
+    .slide-nav-prev { left: 6px; }
+    .slide-nav-next { right: 6px; }
+    @media (max-width: 576px) {
+      .view-slide { padding: 0.75rem 0.5rem; }
+      .slide-nav { display: none; }
+      .glass { padding: 0.75rem !important; }
+      .mini-cal { gap: 4px; }
+      .metric-label { font-size: 0.8rem; }
+      .badge-soft { font-size: 0.85rem; }
+    }
     .bd-icon { width: 28px; height: 28px; display: inline-block; vertical-align: middle; margin-right: 8px; }
     .moon-icon { width: 24px; height: 24px; margin-right: 6px; }
     #settingsPanel { max-width: 420px; }
@@ -68,25 +87,27 @@
     </div>
   </div>
 </div>
-<div class="container-fluid py-3">
-  <div class="d-flex align-items-center justify-content-between mb-3">
+<div class="container-fluid py-2" id="app-root">
+  <div class="d-flex align-items-center justify-content-between mb-2 flex-shrink-0 flex-wrap gap-2">
     <div>
       <h1 class="hero-title fw-bold mb-0">KosmoStream</h1>
       <div class="small text-secondary">Cosmic-aligned planting stream</div>
     </div>
     <div class="d-flex gap-2 align-items-center">
-      <span class="badge-soft">{{ current_date }}</span>
+      <span class="badge-soft d-none d-sm-inline">{{ current_date }}</span>
       <button class="btn btn-sm btn-outline-light pill-btn" id="openScreens">Screens</button>
       <button class="btn btn-sm btn-outline-light pill-btn" data-bs-toggle="modal" data-bs-target="#settingsModal">Settings</button>
     </div>
   </div>
   {% if soundtrack and soundtrack|length > 0 %}
-    <audio id="ks-audio" class="d-none" preload="auto" loop
+    <audio id="ks-audio" class="d-none" preload="auto"
       data-playlist='[{% for track in soundtrack %}"{{ url_for('static', filename='music/' + track) }}"{% if not loop.last %}, {% endif %}{% endfor %}]'>
     </audio>
   {% endif %}
 
   <div id="slides-wrapper">
+    <button class="slide-nav slide-nav-prev" id="prevSlide" aria-label="Previous slide">&#8249;</button>
+    <button class="slide-nav slide-nav-next" id="nextSlide" aria-label="Next slide">&#8250;</button>
 
   <!-- Current Conditions View -->
   <section class="view-slide active" id="slide-current">
@@ -205,7 +226,7 @@
   <!-- Almanac View -->
   <section class="view-slide" id="slide-almanac">
     <div class="section-title">Enhanced Almanac</div>
-    <div class="glass p-3" style="max-height:70vh; overflow:auto;">
+    <div class="glass p-3">
       <div class="row g-3">
         <div class="col-12">
           <div class="card-dark p-3 h-100">
@@ -248,12 +269,15 @@
 
   <!-- Biodynamic Outlook -->
   <section class="view-slide" id="slide-bd-outlook">
-    <div class="section-title">Biodynamic Outlook</div>
-    <div class="glass p-3" style="max-height:70vh; overflow:auto;">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <div class="section-title mb-0">Biodynamic Outlook</div>
+      <span id="bd-page-indicator" class="badge-soft" style="font-size:0.75rem;"></span>
+    </div>
+    <div class="glass p-3">
       {% if bd_ranges %}
-      <div class="row g-2">
+      <div class="row g-2" id="bd-cards-grid">
         {% for r in bd_ranges %}
-        <div class="col-12 col-md-4 col-lg-4">
+        <div class="col-12 col-md-4 col-lg-4 bd-card-item">
           <div class="p-2 rounded bd-outlook-card" data-bdtype="{{ r.type|lower }}" data-range="{{ r.display_range }}" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); min-height:80px;">
             <div class="d-flex align-items-center mb-1">
               <div class="me-2">{% set bd_for_icon = {'type': r.type} %}{% include 'partials/bd_icon.html' with context %}</div>
@@ -273,26 +297,28 @@
     </div>
   </section>
 
-  <!-- Vinter's Outlook (premium placeholder) -->
+  <!-- Vinter's Outlook -->
   <section class="view-slide" id="slide-vinter">
     <div class="section-title">Vinter's Outlook</div>
-    <div class="glass p-3" style="max-height:70vh; overflow:auto;">
+    <div class="glass p-3">
       <div class="row g-3">
         <div class="col-12 col-lg-6">
           <div class="card-dark p-3 h-100">
             <div class="fw-bold mb-2">Cellar Timing Guidance</div>
-            <ul class="mb-0 text-secondary" style="line-height:1.4;">
-              <li>Fruit / Flower days: tastings & bottling shine; expect aromatic lift.</li>
-              <li>Leaf / Root days: avoid racking & bottling; keep interventions minimal.</li>
-              <li>Descending Moon: prioritize racking and bottling for stability.</li>
-              <li>Ascending Moon: oxygenation or aromatic opening tasks.</li>
-            </ul>
+            <div id="vinter-cellar" class="mb-2" style="line-height:1.5;">—</div>
+            <div id="vinter-moon" class="text-secondary small mt-2" style="line-height:1.4;">—</div>
           </div>
         </div>
         <div class="col-12 col-lg-6">
           <div class="card-dark p-3 h-100">
             <div class="fw-bold mb-2">Energy of the Day</div>
-            <div class="text-secondary" style="line-height:1.5;">Tailored biodynamic + lunar context for winemaking tasks (harvest, racking, bottling, tasting). Premium view will auto-map BD calendar and moon phase to cellar actions.</div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="metric-label">Moon Phase</span>
+              <span id="vinter-phase" class="fw-semibold text-end small">—</span>
+            </div>
+            <div id="vinter-kp" class="text-secondary small mb-2">—</div>
+            <div id="vinter-temp" class="text-secondary small">—</div>
+            <div id="vinter-bd-next" class="text-secondary small mt-2" style="font-style:italic;">—</div>
           </div>
         </div>
       </div>
@@ -302,7 +328,7 @@
   <!-- KosmoGrow Advantage (premium placeholder) -->
   <section class="view-slide" id="slide-kosmogrow">
     <div class="section-title">KosmoGrow Advantage</div>
-    <div class="glass p-3" style="max-height:70vh; overflow:auto;">
+    <div class="glass p-3">
       <div class="card-dark p-3 mb-3">
         <div class="fw-bold">Rotating Knowledge Nugget</div>
         <div class="text-secondary" id="kosmogrow-tip" style="line-height:1.5;">Loading tip…</div>
@@ -355,20 +381,30 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  const ttsDefault = false; // Front-end speech disabled; Piper-only backend announcements
+  // --- Server-rendered data ---
+  const ksData = {
+    bd:       {{ bd | tojson if bd else 'null' }},
+    kp:       {{ space.kp_now | tojson if (space and space.kp_now is not none) else 'null' }},
+    wx:       {{ wx | tojson if wx else 'null' }},
+    bdRanges: {{ bd_ranges | tojson if bd_ranges else '[]' }},
+  };
+
+  const ttsDefault = false;
   const allSlideMeta = [
-    { id: 'slide-current', label: 'Current Conditions' },
-    { id: 'slide-outlook-3', label: 'Planting Outlook' },
-    { id: 'slide-outlook-7', label: 'Extended Planting Outlook' },
-    { id: 'slide-almanac', label: 'Enhanced Almanac' },
+    { id: 'slide-current',    label: 'Current Conditions' },
+    { id: 'slide-outlook-3',  label: 'Planting Outlook' },
+    { id: 'slide-outlook-7',  label: 'Extended Planting Outlook' },
+    { id: 'slide-almanac',    label: 'Enhanced Almanac' },
     { id: 'slide-bd-outlook', label: 'Biodynamic Outlook' },
-    { id: 'slide-vinter', label: "Vinter's Outlook" },
-    { id: 'slide-kosmogrow', label: 'KosmoGrow Advantage' },
+    { id: 'slide-vinter',     label: "Vinter's Outlook" },
+    { id: 'slide-kosmogrow',  label: 'KosmoGrow Advantage' },
   ];
   let slides = [];
   let slideIndex = 0;
-  let scrollIntervalMs = ttsDefault ? 20000 : 12000;
+  let scrollIntervalMs = 12000;
   let slideTimer;
+  let bdPageTimer;
+  let bdCurrentPage = 0;
 
   function scheduleNextSlide(delayMs) {
     clearTimeout(slideTimer);
@@ -376,22 +412,129 @@
     slideTimer = setTimeout(() => advanceSlide(), delayMs);
   }
 
-  function advanceSlide() {
+  function goToSlide(newIdx) {
     if (!slides.length) return;
+    clearTimeout(slideTimer);
+    clearTimeout(bdPageTimer);
     slides[slideIndex].classList.remove('active');
-    slideIndex = (slideIndex + 1) % slides.length;
+    slideIndex = ((newIdx % slides.length) + slides.length) % slides.length;
     slides[slideIndex].classList.add('active');
-    if (slides[slideIndex].id === 'slide-kosmogrow') updateKosmoTip();
-    if (slides[slideIndex].id === 'slide-bd-outlook') scheduleBdEqualize();
+    const timingHandled = onSlideEnter(slides[slideIndex]);
     const deferred = speakSlide(slideIndex);
-    if (deferred !== 'defer') scheduleNextSlide(scrollIntervalMs);
+    if (!timingHandled && deferred !== 'defer') scheduleNextSlide(scrollIntervalMs);
+  }
+  function advanceSlide() { goToSlide(slideIndex + 1); }
+  function prevSlide()    { goToSlide(slideIndex - 1); }
+
+  function onSlideEnter(slideEl) {
+    if (!slideEl) return false;
+    if (slideEl.id === 'slide-kosmogrow') updateKosmoTip();
+    if (slideEl.id === 'slide-vinter')    renderVinter();
+    if (slideEl.id === 'slide-bd-outlook') {
+      scheduleBdEqualize();
+      bdPagerStart();
+      return true;
+    }
+    return false;
   }
 
   function startSlides() {
     clearTimeout(slideTimer);
+    clearTimeout(bdPageTimer);
     if (!slides.length) return;
+    const timingHandled = onSlideEnter(slides[slideIndex]);
     const deferred = speakSlide(slideIndex);
-    if (deferred !== 'defer') scheduleNextSlide(scrollIntervalMs);
+    if (!timingHandled && deferred !== 'defer') scheduleNextSlide(scrollIntervalMs);
+  }
+
+  // ---- BD Card Paginator ----
+  function getBdPageSize() { return window.innerWidth >= 768 ? 6 : 3; }
+
+  function showBdPage(page) {
+    const items = Array.from(document.querySelectorAll('#slide-bd-outlook .bd-card-item'));
+    const size  = getBdPageSize();
+    const start = page * size;
+    items.forEach((el, i) => {
+      el.style.display = (i >= start && i < start + size) ? '' : 'none';
+    });
+    const total = Math.ceil(items.length / size);
+    const indicator = document.getElementById('bd-page-indicator');
+    if (indicator) indicator.textContent = total > 1 ? `${page + 1} / ${total}` : '';
+    scheduleBdEqualize();
+  }
+
+  function bdPagerStart() {
+    bdCurrentPage = 0;
+    showBdPage(0);
+    bdScheduleNext();
+  }
+
+  function bdScheduleNext() {
+    clearTimeout(bdPageTimer);
+    const items = document.querySelectorAll('#slide-bd-outlook .bd-card-item');
+    const size  = getBdPageSize();
+    const totalPages = Math.ceil(items.length / size);
+    const readingMs  = Math.max(scrollIntervalMs, 7000);
+    if (bdCurrentPage + 1 < totalPages) {
+      bdPageTimer = setTimeout(() => {
+        bdCurrentPage++;
+        showBdPage(bdCurrentPage);
+        bdScheduleNext();
+      }, readingMs);
+    } else {
+      bdPageTimer = setTimeout(() => advanceSlide(), readingMs);
+    }
+  }
+
+  // ---- Vinter's Dynamic Rendering ----
+  const _cellarMap = {
+    fruit:  { label: 'Fruit Day',   cls: 'text-warning',  text: 'Ideal for tastings, bottling & blending — expect aromatic lift and expressive fruit character.' },
+    flower: { label: 'Flower Day',  cls: 'text-info',     text: 'Wines open expressively. Excellent for aromatic evaluations and careful racking.' },
+    root:   { label: 'Root Day',    cls: 'text-secondary',text: 'Wines trend closed and earthy. Defer bottling, tastings, and aromatic work.' },
+    leaf:   { label: 'Leaf Day',    cls: 'text-success',  text: 'Wines may show green notes. Minimal cellar intervention recommended.' },
+    rest:   { label: 'Rest Day',    cls: 'text-muted',    text: 'Postpone all critical cellar operations — rack, bottle, or taste another day.' },
+    barren: { label: 'Barren Day',  cls: 'text-danger',   text: 'Barren period: avoid tastings, bottling, and aromatic evaluations entirely.' },
+  };
+
+  function renderVinter() {
+    const bdType = (ksData.bd?.type || '').toLowerCase();
+    const phase  = ksData.bd?.phase || '';
+    const kp     = ksData.kp;
+    const wx     = ksData.wx;
+    const cellar = _cellarMap[bdType] || { label: 'Unclassified Day', cls: 'text-secondary', text: 'Observe and record; defer evaluations until BD type clarifies.' };
+    const phaseL = phase.toLowerCase();
+    let moonDir = 'Moon phase data unavailable.';
+    if      (phaseL.includes('waxing') || phaseL.includes('crescent'))                            moonDir = 'Ascending Moon — wines open and oxygenate well. Suitable for racking.';
+    else if (phaseL.includes('waning'))                                                            moonDir = 'Descending Moon — prefer bottling, capping, and settling. Wines integrate.';
+    else if (phaseL.includes('full'))                                                              moonDir = 'Full Moon — energy peaks; wines can be volatile. Taste carefully and note results.';
+    else if (phaseL.includes('new'))                                                               moonDir = 'New Moon — wines tend stable and closed. Suitable for filtration.';
+    else if (phaseL.includes('first quarter'))                                                     moonDir = 'First Quarter — building energy. Suitable for oxygenation and aromatic lifting.';
+    else if (phaseL.includes('last quarter') || phaseL.includes('third quarter'))                 moonDir = 'Last Quarter — winding energy. Favours racking for clarity and precision bottling.';
+    else if (phase)                                                                                moonDir = `Phase: ${phase}.`;
+    let kpNote = 'Geomagnetic data unavailable.';
+    if (kp !== null && kp !== undefined) {
+      if      (kp >= 5) kpNote = `⚡ Elevated geomagnetic activity (Kp ${kp}) — heightened sensitivity during tastings.`;
+      else if (kp >= 3) kpNote = `Kp ${kp} — mild activity; monitor aromatic consistency.`;
+      else              kpNote = `Kp ${kp} — quiet conditions; ideal for precision cellar work.`;
+    }
+    let tempNote = 'Cellar temperatures within expected range.';
+    if (wx?.temp_max != null) {
+      if      (wx.temp_max >= 28) tempNote = `⚠ High of ${Math.round(wx.temp_max)}°C expected — verify cellar cooling is active.`;
+      else if (wx.temp_max <= 5)  tempNote = `❄ Cold high of ${Math.round(wx.temp_max)}°C — check fermentation temps and heating.`;
+    }
+    let nextHint = '';
+    const betterDays = ['fruit', 'flower'];
+    if (ksData.bdRanges?.length && !betterDays.includes(bdType)) {
+      const next = ksData.bdRanges.find(r => betterDays.includes((r.type || '').toLowerCase()));
+      if (next) nextHint = `Next tasting window: ${next.type} day — ${next.display_range}.`;
+    }
+    const _set = (id, html, isHtml) => { const el = document.getElementById(id); if (el) { if (isHtml) el.innerHTML = html; else el.textContent = html; } };
+    _set('vinter-cellar',  `<span class="fw-bold ${cellar.cls}">${cellar.label}</span><br><span class="text-secondary" style="line-height:1.5;">${cellar.text}</span>`, true);
+    _set('vinter-moon',    moonDir);
+    _set('vinter-phase',   phase || '—');
+    _set('vinter-kp',      kpNote);
+    _set('vinter-temp',    tempNote);
+    _set('vinter-bd-next', nextHint);
   }
 
   function loadPrefs() {
@@ -420,12 +563,14 @@
 
   let bdEqTimer;
   function equalizeBdCards() {
-    const cards = Array.from(document.querySelectorAll('#slide-bd-outlook .bd-outlook-card'));
+    const items = Array.from(document.querySelectorAll('#slide-bd-outlook .bd-card-item'))
+      .filter(el => el.style.display !== 'none');
+    const cards = items.map(el => el.querySelector('.bd-outlook-card')).filter(Boolean);
     if (!cards.length) return;
     cards.forEach(c => c.style.height = 'auto');
     const rows = {};
     cards.forEach(c => {
-      const top = c.offsetTop;
+      const top = Math.round(c.getBoundingClientRect().top);
       rows[top] = rows[top] || [];
       rows[top].push(c);
     });
@@ -440,7 +585,10 @@
     bdEqTimer = setTimeout(equalizeBdCards, 120);
   }
 
-  window.addEventListener('resize', scheduleBdEqualize);
+  window.addEventListener('resize', () => {
+    scheduleBdEqualize();
+    if (slides[slideIndex]?.id === 'slide-bd-outlook') showBdPage(bdCurrentPage);
+  });
 
   const kosmoTips = [
     'Biochar is carbon-negative and its porous, negatively charged structure soaks up minerals and nutrients, then releases them slowly over decades.',
@@ -457,16 +605,14 @@
   }
 
   function buildSlides(selectedIds) {
+    clearTimeout(slideTimer);
+    clearTimeout(bdPageTimer);
     slides = selectedIds.map(id => document.getElementById(id)).filter(Boolean);
     if (!slides.length) slides = allSlideMeta.map(s => document.getElementById(s.id)).filter(Boolean);
     slideIndex = 0;
-    // ensure only first is active
-    document.querySelectorAll('.view-slide').forEach((el, idx) => {
-      el.classList.remove('active');
-    });
+    document.querySelectorAll('.view-slide').forEach(el => el.classList.remove('active'));
     if (slides.length) slides[0].classList.add('active');
-    scheduleBdEqualize();
-    if (slides.length && slides[0].id === 'slide-kosmogrow') updateKosmoTip();
+    if (slides.some(s => s.id === 'slide-bd-outlook')) showBdPage(0);
   }
 
   function savePrefs() {
@@ -491,16 +637,34 @@
     window.location.href = url.toString();
   }
 
+  function _shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
   function initAudioPlaylist() {
     const audio = document.getElementById('ks-audio');
     if (!audio || !audio.dataset.playlist) return;
     if (audio.dataset.ready === '1') return;
     try {
-      const list = JSON.parse(audio.dataset.playlist);
-      if (!Array.isArray(list) || list.length === 0) return;
-      const pick = list[Math.floor(Math.random() * list.length)];
-      audio.src = pick;
+      const rawList = JSON.parse(audio.dataset.playlist);
+      if (!Array.isArray(rawList) || rawList.length === 0) return;
+      const list = _shuffleArray([...rawList]);
+      let trackIndex = 0;
+      audio.src = list[trackIndex];
       audio.dataset.ready = '1';
+      audio.addEventListener('ended', () => {
+        trackIndex++;
+        if (trackIndex >= list.length) {
+          trackIndex = 0;
+          _shuffleArray(list);
+        }
+        audio.src = list[trackIndex];
+        audio.play().catch(() => {});
+      });
     } catch (e) {
       console.warn('Bad playlist', e);
     }
@@ -528,10 +692,33 @@
     if (!audio) return;
     const newMute = !audio.muted;
     toggleAudio(newMute);
-    // mirror to switch
     const toggle = document.getElementById('toggleMute');
     if (toggle) toggle.checked = !newMute;
   });
+
+  // Manual slide navigation
+  document.getElementById('prevSlide')?.addEventListener('click', prevSlide);
+  document.getElementById('nextSlide')?.addEventListener('click', advanceSlide);
+
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); advanceSlide(); }
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); prevSlide(); }
+  });
+
+  // Touch swipe detection
+  (function addSwipe(el) {
+    if (!el) return;
+    let sx = 0, sy = 0;
+    el.addEventListener('touchstart', e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive: true });
+    el.addEventListener('touchend',   e => {
+      const dx = e.changedTouches[0].clientX - sx;
+      const dy = e.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+        if (dx < 0) advanceSlide(); else prevSlide();
+      }
+    }, { passive: true });
+  })(document.getElementById('slides-wrapper'));
 
   // Auto poll status
   function applyUnitToTemps(unit) {
@@ -602,6 +789,7 @@
         document.getElementById('bd-type').textContent = data.bd.type || 'BD';
         document.getElementById('bd-activities').textContent = data.bd.activities || '';
         document.getElementById('bd-notes').textContent = data.bd.notes || '';
+        ksData.bd = data.bd;
       }
       if (data.weather) {
         const tminEl = document.getElementById('temp-range');
@@ -613,26 +801,30 @@
         const popPct = Math.round((data.weather.pop || 0) * 100);
         document.getElementById('wx-pop').textContent = `POP ${popPct}%`;
         applyUnitToTemps((JSON.parse(localStorage.getItem('ks_prefs') || '{}').units || 'metric'));
+        ksData.wx = data.weather;
       }
       if (data.space) {
         renderKp(data.space.kp_now);
         document.getElementById('space-summary').textContent = data.space.summary || '';
+        ksData.kp = data.space.kp_now;
       }
       if (data.suggestion) {
         document.getElementById('today-suggestion').textContent = data.suggestion;
       }
       if (data.alerts) {
         const list = document.getElementById('alert-list');
-        list.innerHTML = '';
-        if (data.alerts.length === 0) {
-          list.innerHTML = '<li class="text-secondary">No active alerts</li>';
-        } else {
-          data.alerts.forEach(a => {
-            const li = document.createElement('li');
-            li.className = 'mb-2';
-            li.textContent = `• ${a.text}`;
-            list.appendChild(li);
-          });
+        if (list) {
+          list.innerHTML = '';
+          if (data.alerts.length === 0) {
+            list.innerHTML = '<li class="text-secondary">No active alerts</li>';
+          } else {
+            data.alerts.forEach(a => {
+              const li = document.createElement('li');
+              li.className = 'mb-2';
+              li.textContent = `• ${a.text}`;
+              list.appendChild(li);
+            });
+          }
         }
       }
     } catch (err) {
@@ -648,9 +840,7 @@
   scheduleBdEqualize();
   setInterval(refreshStatus, 5 * 60 * 1000);
 
-  function speakSlide(idx) {
-    return;
-  }
+  function speakSlide(idx) { return; }
 
   function setupScreenSelector() {
     const list = document.getElementById('screenList');
