@@ -66,8 +66,8 @@
   let kioskMode = false;
 
   // UI panels
-  let showScreenPicker = false;
   let showSettings = false;
+  let alertsCollapsed = false;
   let screenPickerSelected = new Set(SLIDE_META.map(s => s.id));
 
   // Window width for responsive BD pager
@@ -76,6 +76,7 @@
   // Music
   let audioEl = null;
   let audioReady = false;
+  let musicStarted = false;
   let playlist = [];
   let trackIndex = 0;
 
@@ -452,6 +453,12 @@
   function advanceSlide() { goToSlide(slideIndex + 1); }
   function prevSlideNav()  { goToSlide(slideIndex - 1); }
 
+  function advanceBdPage() {
+    clearTimeout(bdPageTimer);
+    if (bdPageIndex + 1 < bdTotalPages) { bdPageIndex++; bdPagerStart(); }
+    else advanceSlide();
+  }
+
   function bdPagerStart() {
     if (bdTotalPages <= 1) { scheduleNext(scrollIntervalMs); return; }
     bdPageTimer = setTimeout(() => {
@@ -476,8 +483,13 @@
   }
 
   function savePrefs() {
-    if (typeof localStorage !== 'undefined')
+    const chosen = Array.from(screenPickerSelected);
+    if (typeof localStorage !== 'undefined') {
       localStorage.setItem(LS_PREFS_KEY, JSON.stringify({ units, scrollSeconds, muted, kiosk: kioskMode }));
+      localStorage.setItem(LS_SCREENS_KEY, JSON.stringify(chosen));
+    }
+    visibleSlideIds = chosen.length ? chosen : SLIDE_META.map(s => s.id);
+    slideIndex = 0;
     if (kioskMode) document.documentElement.requestFullscreen?.().catch(() => {});
     else document.exitFullscreen?.().catch(() => {});
     showSettings = false;
@@ -490,13 +502,6 @@
     const stored = JSON.parse(localStorage.getItem(LS_SCREENS_KEY) || '[]');
     if (!Array.isArray(stored) || !stored.length) return SLIDE_META.map(s => s.id);
     return stored.filter(id => SLIDE_META.some(s => s.id === id));
-  }
-
-  function applyScreens() {
-    const chosen = Array.from(screenPickerSelected);
-    if (typeof localStorage !== 'undefined') localStorage.setItem(LS_SCREENS_KEY, JSON.stringify(chosen));
-    visibleSlideIds = chosen.length ? chosen : SLIDE_META.map(s => s.id);
-    slideIndex = 0; showScreenPicker = false; startSlides();
   }
 
   function toggleScreen(id) {
@@ -530,8 +535,17 @@
   }
 
   function handleMusicButton() {
-    if (!audioReady) { initMusic(); if (!muted && audioEl) audioEl.play().catch(() => {}); }
-    else toggleMute();
+    if (!musicStarted) {
+      musicStarted = true;
+      muted = false;
+      if (audioEl) { audioEl.muted = false; audioEl.play().catch(() => {}); }
+      if (typeof localStorage !== 'undefined') {
+        const p = JSON.parse(localStorage.getItem(LS_PREFS_KEY) || '{}');
+        p.muted = false; localStorage.setItem(LS_PREFS_KEY, JSON.stringify(p));
+      }
+    } else {
+      toggleMute();
+    }
   }
 
   // ── Touch/keyboard ─────────────────────────────────────────────────────────
@@ -543,7 +557,7 @@
   }
 
   function onKeydown(e) {
-    if (showSettings || showScreenPicker) return;
+    if (showSettings) return;
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); advanceSlide(); }
     if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); prevSlideNav(); }
   }
@@ -555,9 +569,21 @@
     visibleSlideIds = saved; screenPickerSelected = new Set(saved);
     const onResize = () => { windowWidth = window.innerWidth; };
     window.addEventListener('resize', onResize);
+    // Pre-load audio to reduce first-play lag; start playback on first user gesture
+    initMusic();
+    const startOnInteraction = () => {
+      if (!musicStarted && !muted && audioEl) { musicStarted = true; audioEl.play().catch(() => {}); }
+    };
+    document.addEventListener('click', startOnInteraction, { once: true });
+    document.addEventListener('touchstart', startOnInteraction, { once: true });
     refresh();
     const timer = setInterval(refresh, REFRESH_INTERVAL_MS);
-    return () => { clearInterval(timer); clearTimeout(slideTimer); clearTimeout(bdPageTimer); window.removeEventListener('resize', onResize); };
+    return () => {
+      clearInterval(timer); clearTimeout(slideTimer); clearTimeout(bdPageTimer);
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('click', startOnInteraction);
+      document.removeEventListener('touchstart', startOnInteraction);
+    };
   });
 
   afterUpdate(() => {
@@ -579,27 +605,28 @@
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
       {#if locationName}<span class="badge-soft d-none d-sm-inline">{locationName} · {todayISO()}</span>{/if}
-      <!-- ZIP input -->
-      <div class="d-flex gap-1 align-items-center">
+      <!-- ZIP input (desktop only — mobile gets it in the bottom bar) -->
+      <div class="d-none d-sm-flex gap-1 align-items-center">
         <input class="zip-input" type="text" inputmode="numeric" maxlength="5" placeholder="ZIP" bind:value={zipInput}
           on:keydown={e => e.key === 'Enter' && applyZip()} aria-label="ZIP code" />
         <button class="btn btn-sm btn-outline-light pill-btn" on:click={applyZip}>Go</button>
       </div>
       <div class="d-none d-sm-flex gap-2 align-items-center">
-        <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showScreenPicker = true}>Screens</button>
         <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showSettings = true}>Settings</button>
-        <button class="btn btn-sm btn-outline-light pill-btn" id="muteToggle" on:click={handleMusicButton}
-          title={!audioReady ? 'Start music' : muted ? 'Unmute' : 'Mute'}>
-          {!audioReady ? '♪' : muted ? '🔇' : '🔊'}
+        <button class="btn btn-sm btn-outline-light pill-btn" id="muteToggle" on:click|stopPropagation={handleMusicButton}
+          title={muted ? 'Unmute' : 'Mute'}>
+          {muted ? '🔇' : '🔊'}
         </button>
       </div>
     </div>
   </div>
 
   <!-- Alerts ticker -->
-  {#if !loading && alerts.length}
-    <div class="ticker mb-2 flex-shrink-0">
-      {#each alerts as a, i}{#if i > 0} &nbsp;·&nbsp; {/if}{a.text}{/each}
+  {#if !loading && alerts.length && !alertsCollapsed}
+    <div class="ticker mb-2 flex-shrink-0 d-flex align-items-center justify-content-between">
+      <span>{#each alerts as a, i}{#if i > 0} &nbsp;·&nbsp; {/if}{a.text}{/each}</span>
+      <button class="btn-close btn-close-white ms-3 flex-shrink-0" style="font-size:.6rem; opacity:.8;"
+        on:click={() => alertsCollapsed = true} aria-label="Dismiss alert"></button>
     </div>
   {/if}
 
@@ -764,7 +791,7 @@
           <!-- ── Slide 5: Biodynamic Outlook ──────────────────────────────── -->
           <div class="d-flex justify-content-between align-items-center mb-1">
             <div class="section-title mb-0">Biodynamic Outlook</div>
-            {#if bdTotalPages > 1}<span class="badge-soft" style="font-size:.75rem;">{bdPageIndex+1} / {bdTotalPages}</span>{/if}
+            {#if bdTotalPages > 1}<button class="badge-soft bd-page-btn" on:click={advanceBdPage} title="Tap to advance page">{bdPageIndex+1} / {bdTotalPages}</button>{/if}
           </div>
           <div class="glass p-3">
             {#if bdPageRanges.length}
@@ -860,42 +887,46 @@
 </div>
 
 <!-- ── Mobile bottom bar (portrait only) ────────────────────────────────── -->
-<div class="bottom-bar d-flex d-sm-none justify-content-around align-items-center">
-  <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showScreenPicker = true}>Screens</button>
-  <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showSettings = true}>Settings</button>
-  <button class="btn btn-sm btn-outline-light pill-btn" on:click={handleMusicButton}
-    title={!audioReady ? 'Start music' : muted ? 'Unmute' : 'Mute'}>
-    {!audioReady ? '♪' : muted ? '🔇' : '🔊'}
+<div class="bottom-bar d-flex d-sm-none align-items-center gap-2 px-3">
+  <button class="btn btn-sm btn-outline-light pill-btn flex-shrink-0" on:click={() => showSettings = true}>Settings</button>
+  <div class="d-flex gap-1 align-items-center flex-grow-1" style="min-width:0;">
+    <input class="zip-input" style="min-width:0; flex:1;" type="text" inputmode="numeric" maxlength="5" placeholder="ZIP"
+      bind:value={zipInput} on:keydown={e => e.key === 'Enter' && applyZip()} aria-label="ZIP code" />
+    <button class="btn btn-sm btn-outline-light pill-btn flex-shrink-0" on:click={applyZip}>Go</button>
+  </div>
+  {#if alerts.length && alertsCollapsed}
+    <button class="btn btn-sm alert-chip pill-btn flex-shrink-0" on:click={() => alertsCollapsed = false}
+      title={alerts[0].text}>⚠</button>
+  {/if}
+  <button class="btn btn-sm btn-outline-light pill-btn flex-shrink-0" on:click|stopPropagation={handleMusicButton}
+    title={muted ? 'Unmute' : 'Mute'}>
+    {muted ? '🔇' : '🔊'}
   </button>
 </div>
-
-<!-- ── Screen picker overlay ──────────────────────────────────────────────── -->
-{#if showScreenPicker}
-  <div class="screen-overlay">
-    <div class="screen-picker">
-      <h5 class="fw-bold">Choose screens for your stream</h5>
-      <div class="mb-3">
-        {#each SLIDE_META as s}
-          <div class="form-check mb-1">
-            <input class="form-check-input" type="checkbox" id="chk-{s.id}" checked={screenPickerSelected.has(s.id)}
-              on:change={() => toggleScreen(s.id)} />
-            <label class="form-check-label" for="chk-{s.id}">{s.label}</label>
-          </div>
-        {/each}
-      </div>
-      <div class="d-flex gap-2">
-        <button class="btn btn-primary w-100" on:click={applyScreens}>Start Stream</button>
-        <button class="btn btn-outline-light" on:click={() => { screenPickerSelected = new Set(SLIDE_META.map(s=>s.id)); }}>Select All</button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <!-- ── Settings overlay ───────────────────────────────────────────────────── -->
 {#if showSettings}
   <div class="screen-overlay">
     <div class="screen-picker">
       <h5 class="fw-bold">Settings</h5>
+      <!-- Screens -->
+      <div class="mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <label class="form-label small fw-semibold mb-0">Screens</label>
+          <button class="btn btn-link btn-sm p-0 text-secondary" style="font-size:.75rem;"
+            on:click={() => { screenPickerSelected = new Set(SLIDE_META.map(s=>s.id)); }}>Select all</button>
+        </div>
+        <div style="max-height:160px; overflow-y:auto;">
+          {#each SLIDE_META as s}
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" id="cfg-{s.id}" checked={screenPickerSelected.has(s.id)}
+                on:change={() => toggleScreen(s.id)} />
+              <label class="form-check-label" for="cfg-{s.id}">{s.label}</label>
+            </div>
+          {/each}
+        </div>
+      </div>
+      <!-- Units -->
       <div class="mb-2">
         <label class="form-label small">Units</label>
         <select class="form-select form-select-sm" bind:value={units}>
@@ -951,7 +982,7 @@
   @media (max-width: 576px) {
     .view-slide { padding: .75rem .5rem; }
     .slide-nav  { display: none; }
-    #app-root   { padding-bottom: 56px; }
+    #app-root   { padding-bottom: 64px; }
   }
 
   .slide-nav {
@@ -1018,7 +1049,7 @@
   :global(.form-check-label) { color: #e9edf5; }
 
   .bottom-bar {
-    position: fixed; bottom: 0; left: 0; right: 0; height: 52px;
+    position: fixed; bottom: 0; left: 0; right: 0; height: 60px;
     background: rgba(5,9,16,.95); border-top: 1px solid rgba(255,255,255,.1);
     z-index: 500;
     padding-bottom: env(safe-area-inset-bottom, 0);
@@ -1032,4 +1063,15 @@
     background: rgba(255,255,255,.3); transition: background .2s, transform .2s; flex-shrink: 0;
   }
   .slide-dot.active { background: #e9edf5; transform: scale(1.3); }
+
+  .alert-chip {
+    background: linear-gradient(90deg,#d7263d,#f19a3e); color: #fff;
+    border: none; font-size: .9rem; padding: 0 8px;
+  }
+  .bd-page-btn {
+    background: rgba(255,255,255,.12); color: #c7d3e3;
+    border: none; border-radius: 10px; padding: 4px 8px;
+    font-size: .75rem; cursor: pointer; transition: background .2s;
+  }
+  .bd-page-btn:hover, .bd-page-btn:focus { background: rgba(255,255,255,.22); outline: none; }
 </style>
