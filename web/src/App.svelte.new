@@ -2,7 +2,7 @@
   import { onMount, afterUpdate } from 'svelte';
   import bd2026raw from '../../bd_calendar_2026.json';
 
-  // ── Constants ───────────────────────────────────────────────────────────────
+  // ── Constants ──────────────────────────────────────────────────────────────
   const OWM_KEY = import.meta.env.VITE_OWM_API_KEY || '';
   const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
   const DEFAULT_ZIP = '10001';
