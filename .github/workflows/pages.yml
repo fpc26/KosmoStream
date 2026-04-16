@@ -28,6 +28,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: web/package-lock.json
 
+      - name: Copy music assets
+        run: cp static/music/*.mp3 web/public/music/
+
       - name: Install dependencies
         run: npm ci
         working-directory: web
@@ -36,8 +39,8 @@ jobs:
         run: npm run build
         working-directory: web
         env:
-          # Repository variable (Settings -> Secrets and variables -> Actions -> Variables)
-          VITE_API_URL: ${{ vars.KOSMOSTREAM_API_URL }}
+          # Repository secret (Settings -> Secrets and variables -> Actions -> Secrets)
+          VITE_OWM_API_KEY: ${{ secrets.KOSMOSTREAM_OWM_API_KEY }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
