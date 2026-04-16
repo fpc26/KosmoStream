@@ -529,7 +529,10 @@
     if (!muted) audioEl.play().catch(() => {});
   }
 
-  function enableMusic() { initMusic(); if (!muted && audioEl) audioEl.play().catch(() => {}); }
+  function handleMusicButton() {
+    if (!audioReady) { initMusic(); if (!muted && audioEl) audioEl.play().catch(() => {}); }
+    else toggleMute();
+  }
 
   // ── Touch/keyboard ─────────────────────────────────────────────────────────
   function onTouchStart(e) { swipeStartX = e.changedTouches[0].clientX; swipeStartY = e.changedTouches[0].clientY; }
@@ -582,10 +585,14 @@
           on:keydown={e => e.key === 'Enter' && applyZip()} aria-label="ZIP code" />
         <button class="btn btn-sm btn-outline-light pill-btn" on:click={applyZip}>Go</button>
       </div>
-      <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showScreenPicker = true}>Screens</button>
-      <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showSettings = true}>Settings</button>
-      <button class="btn btn-sm btn-outline-light pill-btn" id="muteToggle" on:click={toggleMute} title={muted ? 'Unmute' : 'Mute'}>{muted ? '🔇' : '🔊'}</button>
-      <button class="btn btn-sm btn-outline-light pill-btn" on:click={enableMusic} title="Enable music">♪</button>
+      <div class="d-none d-sm-flex gap-2 align-items-center">
+        <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showScreenPicker = true}>Screens</button>
+        <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showSettings = true}>Settings</button>
+        <button class="btn btn-sm btn-outline-light pill-btn" id="muteToggle" on:click={handleMusicButton}
+          title={!audioReady ? 'Start music' : muted ? 'Unmute' : 'Mute'}>
+          {!audioReady ? '♪' : muted ? '🔇' : '🔊'}
+        </button>
+      </div>
     </div>
   </div>
 
@@ -837,10 +844,29 @@
     </div>
   {/if}
 
+  <!-- Slide dots (mobile only) -->
+  {#if !loading && !error && visibleSlides.length > 0}
+    <div class="slide-dots d-flex d-sm-none">
+      {#each visibleSlides as _, i}
+        <button class="slide-dot" class:active={i === slideIndex} on:click={() => goToSlide(i)} aria-label="Slide {i+1}"></button>
+      {/each}
+    </div>
+  {/if}
+
   <!-- Last updated -->
   {#if lastUpdated && !loading}
     <div class="text-secondary" style="font-size:.7rem; text-align:right; flex-shrink:0; padding:.25rem .5rem;">Updated {formatDate(lastUpdated)}</div>
   {/if}
+</div>
+
+<!-- ── Mobile bottom bar (portrait only) ────────────────────────────────── -->
+<div class="bottom-bar d-flex d-sm-none justify-content-around align-items-center">
+  <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showScreenPicker = true}>Screens</button>
+  <button class="btn btn-sm btn-outline-light pill-btn" on:click={() => showSettings = true}>Settings</button>
+  <button class="btn btn-sm btn-outline-light pill-btn" on:click={handleMusicButton}
+    title={!audioReady ? 'Start music' : muted ? 'Unmute' : 'Mute'}>
+    {!audioReady ? '♪' : muted ? '🔇' : '🔊'}
+  </button>
 </div>
 
 <!-- ── Screen picker overlay ──────────────────────────────────────────────── -->
@@ -878,10 +904,6 @@
         </select>
       </div>
       <div class="form-check form-switch mb-2">
-        <input class="form-check-input" type="checkbox" id="toggleMute2" bind:checked={muted} />
-        <label class="form-check-label" for="toggleMute2">Mute background music</label>
-      </div>
-      <div class="form-check form-switch mb-2">
         <input class="form-check-input" type="checkbox" id="toggleKiosk" bind:checked={kioskMode} />
         <label class="form-check-label" for="toggleKiosk">Kiosk mode (fullscreen)</label>
       </div>
@@ -904,6 +926,7 @@
     color: #e9edf5;
     height: 100dvh;
     overflow: hidden;
+    overscroll-behavior: none;
     display: flex;
     flex-direction: column;
     margin: 0;
@@ -928,6 +951,7 @@
   @media (max-width: 576px) {
     .view-slide { padding: .75rem .5rem; }
     .slide-nav  { display: none; }
+    #app-root   { padding-bottom: 56px; }
   }
 
   .slide-nav {
@@ -955,7 +979,7 @@
   .metric-value  { font-size: 2rem; font-weight: 700; }
   .badge-soft    { background: rgba(255,255,255,.12); color: #c7d3e3; border-radius: 10px; padding: 4px 8px; font-size: .8rem; }
   .muted         { color: #a8b6c8; }
-  .pill-btn      { border-radius: 999px; }
+  .pill-btn      { border-radius: 999px; min-height: 44px; }
   .ticker        { background: linear-gradient(90deg,#d7263d,#f19a3e); color:#fff; border-radius:12px; padding:10px 14px; font-weight:600; box-shadow:0 6px 16px rgba(0,0,0,.35); }
 
   .kp-bar  { display: grid; grid-template-columns: repeat(9,1fr); gap: 4px; margin-top: 6px; }
@@ -964,7 +988,7 @@
   .zip-input {
     width: 6rem; padding: .3rem .6rem; border-radius: 8px;
     border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.07);
-    color: #e9edf5; font-size: .9rem; min-height: 36px;
+    color: #e9edf5; font-size: .9rem; min-height: 44px;
   }
   .zip-input:focus { outline: none; border-color: rgba(255,255,255,.5); }
 
@@ -992,4 +1016,20 @@
     box-shadow: 0 0 0 .15rem rgba(255,255,255,.15) !important;
   }
   :global(.form-check-label) { color: #e9edf5; }
+
+  .bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 52px;
+    background: rgba(5,9,16,.95); border-top: 1px solid rgba(255,255,255,.1);
+    z-index: 500;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
+  .slide-dots { justify-content: center; gap: 8px; padding: 4px 0; flex-shrink: 0; }
+  .slide-dot {
+    width: 8px; height: 8px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
+    background: rgba(255,255,255,.3); transition: background .2s, transform .2s; flex-shrink: 0;
+  }
+  .slide-dot.active { background: #e9edf5; transform: scale(1.3); }
 </style>

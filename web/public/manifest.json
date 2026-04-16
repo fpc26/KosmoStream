@@ -1,0 +1,18 @@
+{
+  "name": "KosmoStream",
+  "short_name": "KosmoStream",
+  "description": "Cosmic-aligned planting stream",
+  "display": "standalone",
+  "start_url": "/KosmoStream/",
+  "background_color": "#050910",
+  "theme_color": "#0a0f1f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/KosmoStream/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
