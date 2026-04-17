@@ -631,7 +631,8 @@
          target="_blank"
          rel="noopener noreferrer"
          title="KosmoStream Science Guide"
-         aria-label="Science Guide">ℹ️</a>
+         aria-label="Science Guide"
+         style="display:inline-flex;align-items:center;justify-content:center;">📚</a>
     </div>
   </div>
 
