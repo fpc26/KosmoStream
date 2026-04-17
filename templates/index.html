@@ -349,10 +349,6 @@
       </div>
       <div class="modal-body">
         <div class="form-check form-switch mb-2">
-          <input class="form-check-input" type="checkbox" id="toggleTts">
-          <label class="form-check-label" for="toggleTts">Enable announcements (voice)</label>
-        </div>
-        <div class="form-check form-switch mb-2">
           <input class="form-check-input" type="checkbox" id="toggleMute">
           <label class="form-check-label" for="toggleMute">Background music (mute/unmute)</label>
         </div>
@@ -389,7 +385,6 @@
     bdRanges: {{ bd_ranges | tojson if bd_ranges else '[]' }},
   };
 
-  const ttsDefault = false;
   const allSlideMeta = [
     { id: 'slide-current',    label: 'Current Conditions' },
     { id: 'slide-outlook-3',  label: 'Planting Outlook' },
@@ -539,15 +534,12 @@
 
   function loadPrefs() {
     const prefs = JSON.parse(localStorage.getItem('ks_prefs') || '{}');
-    if (prefs.tts === true) document.getElementById('toggleTts').checked = true;
-    if (prefs.tts === undefined && ttsDefault) document.getElementById('toggleTts').checked = true;
     if (prefs.muted === false) { document.getElementById('toggleMute').checked = true; toggleAudio(false); }
     if (prefs.units) document.getElementById('unitSelect').value = prefs.units;
     if (prefs.kiosk === true) { document.getElementById('toggleKiosk').checked = true; enterFullscreen(); }
     if (prefs.scrollSeconds) { document.getElementById('scrollSpeed').value = prefs.scrollSeconds; }
-    const ttsOn = prefs.tts === true || (prefs.tts === undefined && ttsDefault);
     const baseMs = (prefs.scrollSeconds || 12) * 1000;
-    scrollIntervalMs = ttsOn ? Math.max(baseMs, 20000) : baseMs;
+    scrollIntervalMs = baseMs;
     applyUnitToTemps(document.getElementById('unitSelect').value || 'metric');
     return prefs;
   }
@@ -617,7 +609,6 @@
 
   function savePrefs() {
     const prefs = {
-      tts: document.getElementById('toggleTts').checked,
       muted: !document.getElementById('toggleMute').checked,
       units: document.getElementById('unitSelect').value,
       kiosk: document.getElementById('toggleKiosk').checked,
@@ -626,15 +617,10 @@
     localStorage.setItem('ks_prefs', JSON.stringify(prefs));
     // apply
     if (prefs.muted) toggleAudio(true); else toggleAudio(false);
-    const ttsOn = prefs.tts === true || (prefs.tts === undefined && ttsDefault);
     const baseMs = prefs.scrollSeconds * 1000;
-    scrollIntervalMs = ttsOn ? Math.max(baseMs, 20000) : baseMs;
+    scrollIntervalMs = baseMs;
     startSlides();
     if (prefs.kiosk) enterFullscreen(); else exitFullscreen();
-    // For TTS, reload with query param to set cookie
-    const url = new URL(window.location.href);
-    url.searchParams.set('tts', prefs.tts ? 'on' : 'off');
-    window.location.href = url.toString();
   }
 
   function _shuffleArray(arr) {

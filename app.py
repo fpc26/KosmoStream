@@ -1,20 +1,13 @@
 import os
 import datetime
-import shutil
-import subprocess
-import tempfile
 import threading
 from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from flask import Flask, render_template, jsonify, request, make_response
 from db import get_db, init_db
-DEFAULT_LAT = 40.0942
-DEFAULT_LON = -75.9097
-PIPER_MODEL_PATH = os.getenv("PIPER_MODEL_PATH")  # Expected path to en_US-ryan-high.onnx
-PIPER_BINARY = os.getenv("PIPER_BINARY", "piper")
-PIPER_PLAY_CMD = os.getenv("PIPER_PLAY_CMD", "aplay")
-PIPER_ENABLED = os.getenv("PIPER_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+DEFAULT_LAT = 40.7128
+DEFAULT_LON = 74.0060
 
 # Optional skyfield import for rise/set calculations.
 HAS_SKYFIELD = False
@@ -25,52 +18,6 @@ try:
     HAS_SKYFIELD = True
 except Exception:
     HAS_SKYFIELD = False
-
-
-
-# ---- TTS setup (Piper only) ----
-TTS_ENABLED_DEFAULT = os.getenv("TTS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
-
-
-def _piper_available():
-    if not (PIPER_ENABLED and PIPER_MODEL_PATH):
-        return False
-    if not shutil.which(PIPER_BINARY):
-        return False
-    if not shutil.which(PIPER_PLAY_CMD):
-        return False
-    return True
-
-
-def _speak_with_piper(text):
-    if not text or not _piper_available():
-        return False
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            tmp_path = tmp.name
-        subprocess.run(
-            [PIPER_BINARY, "--model", PIPER_MODEL_PATH, "--output_file", tmp_path],
-            input=text.encode("utf-8"),
-            check=True,
-        )
-        subprocess.run([PIPER_PLAY_CMD, tmp_path], check=True)
-        return True
-    except Exception:
-        return False
-    finally:
-        if tmp_path:
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
-
-
-def announce(text):
-    """Speak text if TTS is enabled and engine is available."""
-    if not text:
-        return
-    _speak_with_piper(text)
 
 
 def build_suggestion(bd_entry, wx_entry, space_entry):
@@ -414,15 +361,6 @@ def index():
     lat, lon = get_location()
     tzinfo = get_tzinfo()
     tz_label = datetime.datetime.now(tzinfo).tzname()
-    # TTS preference can be overridden via cookie or query param (?tts=on/off)
-    tts_param = request.args.get("tts")
-    cookie_tts = request.cookies.get("ks_tts")
-    if tts_param in {"on", "off"}:
-        tts_enabled = tts_param == "on"
-    elif cookie_tts in {"on", "off"}:
-        tts_enabled = cookie_tts == "on"
-    else:
-        tts_enabled = TTS_ENABLED_DEFAULT
     conn = get_db()
     bd_row = conn.execute("SELECT * FROM bd_calendar WHERE date=?", (today,)).fetchone()
     wx_row = conn.execute("SELECT * FROM weather_daily WHERE date=?", (today,)).fetchone()
@@ -476,22 +414,6 @@ def index():
             if p.suffix.lower() in {".mp3", ".wav", ".ogg", ".m4a"}:
                 soundtrack.append(p.name)
 
-    # Trigger a concise TTS announcement when enabled.
-    summary_parts = []
-    if bd:
-        summary_parts.append(f"Biodynamic {bd.get('type', '')} day, phase {bd.get('phase', '')}.")
-    if wx:
-        pop_pct = int(((wx.get("pop") or 0) * 100))
-        summary_parts.append(
-            f"Weather: {wx.get('description', 'n/a')}, high {wx.get('temp_max', 'n/a')} C, rain chance {pop_pct} percent."
-        )
-    if space and space.get("kp_now") is not None:
-        kp_desc = describe_kp(space.get("kp_now")) or f"Kp {space['kp_now']}"
-        summary_parts.append(f"Geomagnetic conditions: {kp_desc}.")
-    if today_suggestion:
-        summary_parts.append(today_suggestion)
-    if tts_enabled:
-        announce(" ".join(summary_parts))
     conn.close()
     calendar_days = [dict(r) for r in bd_window_rows]
     bd_ranges = build_bd_ranges(calendar_days, today)
@@ -522,7 +444,6 @@ def index():
         alerts=alerts,
         soundtrack=soundtrack,
         current_date=today,
-        tts_enabled=tts_enabled,
         day_label=day_label,
         bd_ranges=bd_ranges,
         calendar_days=calendar_days,
@@ -530,8 +451,6 @@ def index():
         astro_events=astro_events,
         astro_tz=tz_label,
     ))
-    if tts_param in {"on", "off"}:
-        resp.set_cookie("ks_tts", tts_param, max_age=30*24*3600)
     return resp
 
 

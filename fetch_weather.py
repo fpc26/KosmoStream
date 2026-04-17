@@ -1,8 +1,8 @@
 import os, requests, datetime, collections
 from db import get_db, init_db
 
-LAT = 40.094200
-LON = -75.909700
+LAT = 40.7128
+LON = 74.0060
 API_KEY = os.environ.get("OWM_API_KEY")
 
 # Free tier: use 5-day / 3-hour forecast endpoint and aggregate to daily.

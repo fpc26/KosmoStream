@@ -14,10 +14,6 @@ if [[ -n "${OWM_ENDPOINT:-}" ]]; then
   echo "[INFO] Using custom OWM_ENDPOINT=${OWM_ENDPOINT}"
 fi
 
-# Optional toggles
-: "${TTS_ENABLED:=false}"   # set true to enable TTS
-: "${TTS_VOICE:=male}"     # male-only hint for now
-
 # --- Data loads ---
 python load_bd_calendar.py
 python fetch_weather.py

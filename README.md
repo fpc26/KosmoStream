@@ -2,8 +2,8 @@
 
 KosmoStream is a cosmic-aligned planting dashboard with two UIs:
 
-- **Flask streaming UI** (`templates/index.html`) — a full-screen, slide-based dashboard served by the Flask backend. Designed for kiosk displays and mobile browsers. Supports swipe navigation, background music, and optional voice announcements.
-- **Svelte web app** (`web/`) — a lightweight browser-first frontend (Svelte 5 + Vite) that reads live data from the Flask `/api/status` endpoint. Suitable for static hosting on GitHub Pages.
+- **Flask streaming UI** (`templates/index.html`) — a full-screen, slide-based dashboard served by the Flask backend. Designed for kiosk displays and mobile browsers. Supports swipe navigation and background music.
+- **Svelte web app** (`web/`) — a self-contained browser-first frontend (Svelte 5 + Vite) that fetches weather data directly from OpenWeatherMap and NOAA, and bundles the BD calendar from a local JSON file. Suitable for static hosting on GitHub Pages.
 
 Both UIs pull from the same data sources: biodynamic calendar, OpenWeatherMap forecast, and NOAA space-weather.
 
@@ -44,8 +44,8 @@ python app.py                     # starts Flask on http://localhost:5000
 
 | Variable | Default | Description |
 |---|---|---|
-| `WX_LAT` / `LAT` | `40.0942` | Latitude for weather and astronomical calculations |
-| `WX_LON` / `LON` | `-75.9097` | Longitude for weather and astronomical calculations |
+| `WX_LAT` / `LAT` | `40.7128` | Latitude for weather and astronomical calculations |
+| `WX_LON` / `LON` | `74.0060` | Longitude for weather and astronomical calculations |
 | `ASTRO_TZ` | system local | IANA timezone name for rise/set times (e.g. `America/New_York`) |
 
 ### Optional features
@@ -55,13 +55,6 @@ python app.py                     # starts Flask on http://localhost:5000
 | `API_CORS_ORIGIN` | _(unset)_ | Allowed CORS origin for `/api/status` (e.g. `https://<user>.github.io`) |
 | `OWM_ENDPOINT` | OWM 5-day/3-hour endpoint | Override the OpenWeatherMap forecast URL |
 | `FLASK_DEBUG` | `false` | Enable Flask debug mode |
-| `TTS_ENABLED` | `false` | Enable voice announcements on page load |
-| `PIPER_ENABLED` | `true` | Allow Piper TTS engine to be used |
-| `PIPER_MODEL_PATH` | _(unset)_ | Path to a `.onnx` Piper voice model |
-| `PIPER_BINARY` | `piper` | Piper executable name or path |
-| `PIPER_PLAY_CMD` | `aplay` | Audio playback command used by Piper (e.g. `aplay` on Linux) |
-
-> TTS requires Piper installed and `PIPER_MODEL_PATH` set. A sample model (`en_US-bryce-medium.onnx`) is included in the repo root for reference.
 
 ---
 
@@ -79,7 +72,9 @@ Sun/moon rise and set times are computed using [Skyfield](https://rhodesmill.org
 
 ## Background music
 
-Place `.mp3`, `.wav`, `.ogg`, or `.m4a` files in `static/music/`. The Flask UI will serve them as a looping playlist via the in-page audio player. The mute toggle in Settings persists across reloads.
+Place `.mp3`, `.wav`, `.ogg`, or `.m4a` files in `static/music/`. The Flask UI scans this directory and serves them as a shuffled looping playlist via the in-page audio player. The mute toggle in Settings persists across reloads.
+
+The Svelte web app has its own built-in playlist of five named tracks (`.mp3` only), which are copied from `static/music/` into `web/public/music/` during the GitHub Pages build.
 
 ---
 
@@ -92,13 +87,7 @@ npm install
 npm run dev
 ```
 
-Optional: override the API endpoint at dev time:
-
-```bash
-VITE_API_URL=http://localhost:5000/api/status npm run dev
-```
-
-The Svelte app is built with **Svelte 5** and **Vite 8**. It displays the current biodynamic type, weather summary, space-weather Kp index, today's planting suggestion, and any active alerts — refreshing every 5 minutes automatically.
+The Svelte app is built with **Svelte 5** and **Vite 8**. It fetches weather data directly from OpenWeatherMap (requires `VITE_OWM_API_KEY`) and space weather from NOAA, and bundles the biodynamic calendar from the local `bd_calendar_*.json` file. It displays the current biodynamic type, weather summary, space-weather Kp index, planting suggestions, and upcoming BD outlook — refreshing every 5 minutes automatically.
 
 ---
 
@@ -107,13 +96,13 @@ The Svelte app is built with **Svelte 5** and **Vite 8**. It displays the curren
 This repository includes `.github/workflows/pages.yml` to deploy the Svelte app from `web/dist`.
 
 1. In GitHub repository settings, enable **Pages** with **GitHub Actions** as the source.
-2. Add repository variable `KOSMOSTREAM_API_URL` set to your deployed Flask `/api/status` URL.
+2. Add repository secret `KOSMOSTREAM_OWM_API_KEY` set to your OpenWeatherMap API key.
 3. Push to `main` (or run the workflow manually) to publish.
 
-The Svelte site is fully static and reads live data from the configured API URL.
+The Svelte site is fully static and fetches live weather and space-weather data directly from OpenWeatherMap and NOAA at runtime.
 
-`KOSMOSTREAM_API_URL` should be created as a **Repository variable** under:
-**Settings → Secrets and variables → Actions → Variables**.
+`KOSMOSTREAM_OWM_API_KEY` should be created as a **Repository secret** under:
+**Settings → Secrets and variables → Actions → Secrets**.
 
 ---
 

@@ -40,6 +40,7 @@
   // ── State ──────────────────────────────────────────────────────────────────
   let zip = (typeof localStorage !== 'undefined' && localStorage.getItem(LS_ZIP_KEY)) || DEFAULT_ZIP;
   let zipInput = zip;
+  let zipNeedsSetup = typeof localStorage !== 'undefined' && localStorage.getItem(LS_ZIP_KEY) === null;
   let locationName = '';
 
   let forecast = [];   // [{date, display_label, wx, bd, suggestion}]
@@ -430,6 +431,7 @@
     if (!z) return;
     zip = z;
     if (typeof localStorage !== 'undefined') localStorage.setItem(LS_ZIP_KEY, zip);
+    zipNeedsSetup = false;
     refresh();
   }
 
@@ -606,9 +608,15 @@
     <div class="d-flex gap-2 align-items-center flex-wrap">
       {#if locationName}<span class="badge-soft d-none d-sm-inline">{locationName} · {todayISO()}</span>{/if}
       <!-- ZIP input (desktop only — mobile gets it in the bottom bar) -->
-      <div class="d-none d-sm-flex gap-1 align-items-center">
-        <input class="zip-input" type="text" inputmode="numeric" maxlength="5" placeholder="ZIP" bind:value={zipInput}
-          on:keydown={e => e.key === 'Enter' && applyZip()} aria-label="ZIP code" />
+      <div class="d-none d-sm-flex gap-1 align-items-center" style="position:relative;">
+        {#if zipNeedsSetup}
+          <span class="zip-hint">📍 Set your location</span>
+        {/if}
+        <span class="zip-label" aria-hidden="true">📍</span>
+        <input class="zip-input" class:zip-needs-setup={zipNeedsSetup} type="text" inputmode="numeric" maxlength="5" placeholder="ZIP code" bind:value={zipInput}
+          on:keydown={e => e.key === 'Enter' && applyZip()}
+          on:focus={() => zipNeedsSetup = false}
+          aria-label="ZIP code" />
         <button class="btn btn-sm btn-outline-light pill-btn" on:click={applyZip}>Go</button>
       </div>
       <div class="d-none d-sm-flex gap-2 align-items-center">
@@ -618,6 +626,12 @@
           {muted ? '🔇' : '🔊'}
         </button>
       </div>
+      <a class="btn btn-sm btn-outline-light pill-btn"
+         href="https://kosmogrow.com/kosmostream-guide.html"
+         target="_blank"
+         rel="noopener noreferrer"
+         title="KosmoStream Science Guide"
+         aria-label="Science Guide">ℹ️</a>
     </div>
   </div>
 
@@ -889,9 +903,16 @@
 <!-- ── Mobile bottom bar (portrait only) ────────────────────────────────── -->
 <div class="bottom-bar d-flex d-sm-none align-items-center gap-2 px-3">
   <button class="btn btn-sm btn-outline-light pill-btn flex-shrink-0" on:click={() => showSettings = true}>Settings</button>
-  <div class="d-flex gap-1 align-items-center flex-grow-1" style="min-width:0;">
-    <input class="zip-input" style="min-width:0; flex:1;" type="text" inputmode="numeric" maxlength="5" placeholder="ZIP"
-      bind:value={zipInput} on:keydown={e => e.key === 'Enter' && applyZip()} aria-label="ZIP code" />
+  <div class="d-flex gap-1 align-items-center flex-grow-1" style="min-width:0; position:relative;">
+    {#if zipNeedsSetup}
+      <span class="zip-hint zip-hint--mobile">📍 Set your location</span>
+    {/if}
+    <span class="zip-label" aria-hidden="true">📍</span>
+    <input class="zip-input" class:zip-needs-setup={zipNeedsSetup} style="min-width:0; flex:1;" type="text" inputmode="numeric" maxlength="5" placeholder="ZIP code"
+      bind:value={zipInput}
+      on:keydown={e => e.key === 'Enter' && applyZip()}
+      on:focus={() => zipNeedsSetup = false}
+      aria-label="ZIP code" />
     <button class="btn btn-sm btn-outline-light pill-btn flex-shrink-0" on:click={applyZip}>Go</button>
   </div>
   {#if alerts.length && alertsCollapsed}
@@ -1022,6 +1043,39 @@
     color: #e9edf5; font-size: .9rem; min-height: 44px;
   }
   .zip-input:focus { outline: none; border-color: rgba(255,255,255,.5); }
+
+  @keyframes zip-glow {
+    0%, 100% { border-color: rgba(255,255,255,.2); box-shadow: none; }
+    50% { border-color: rgba(99,179,237,.85); box-shadow: 0 0 0 3px rgba(99,179,237,.2), 0 0 16px rgba(99,179,237,.18); }
+  }
+  @keyframes hint-pop {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .zip-input.zip-needs-setup { animation: zip-glow 2s ease-in-out infinite; }
+  .zip-label {
+    font-size: .8rem; opacity: .55; flex-shrink: 0; pointer-events: none; user-select: none; line-height: 1;
+  }
+  .zip-hint {
+    position: absolute; bottom: calc(100% + 8px); left: 0;
+    background: rgba(18,38,64,.97); color: #7ec8e3;
+    border: 1px solid rgba(99,179,237,.45); border-radius: 999px;
+    font-size: .7rem; font-weight: 600; white-space: nowrap;
+    padding: 4px 10px; letter-spacing: .02em;
+    box-shadow: 0 4px 14px rgba(0,0,0,.45);
+    animation: hint-pop .2s ease-out;
+    pointer-events: none; z-index: 10;
+  }
+  .zip-hint::after {
+    content: ''; position: absolute; top: 100%; left: 16px;
+    border: 5px solid transparent;
+    border-top-color: rgba(99,179,237,.45);
+  }
+  .zip-hint--mobile {
+    bottom: auto; top: auto;
+    /* floats above the bottom bar — relies on overflow being visible */
+    bottom: calc(100% + 8px);
+  }
 
   /* Icons from {@html} — must be global */
   :global(.bd-icon)   { width: 28px; height: 28px; display: inline-block; vertical-align: middle; flex-shrink: 0; }
